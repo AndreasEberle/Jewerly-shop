@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jewelry Shop Analytics Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+        }
+        .header p {
+            margin: 10px 0 0 0;
+            opacity: 0.9;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            transition: transform 0.3s ease;
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        .stat-number {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #667eea;
+            margin: 0;
+        }
+        .stat-label {
+            color: #666;
+            margin: 10px 0 0 0;
+            font-size: 1.1em;
+        }
+        .chart-container {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+        }
+        .chart-title {
+            font-size: 1.5em;
+            margin: 0 0 20px 0;
+            color: #333;
+        }
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: #666;
+        }
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .refresh-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            margin: 20px 0;
+        }
+        .refresh-btn:hover {
+            background: #5a6fd8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>💎 Jewelry Shop Analytics</h1>
+            <p>Real-time insights into your jewelry business</p>
+        </div>
+
+        <button class="refresh-btn" onclick="loadDashboard()">🔄 Refresh Data</button>
+
+        <div id="loading" class="loading">
+            <h3>Loading analytics data...</h3>
+        </div>
+
+        <div id="error" class="error" style="display: none;"></div>
+
+        <div id="dashboard" style="display: none;">
+            <!-- Today's Stats -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-number" id="totalEventsToday">-</div>
+                    <div class="stat-label">Total Events Today</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="productViewsToday">-</div>
+                    <div class="stat-label">Product Views Today</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="pageViewsToday">-</div>
+                    <div class="stat-label">Page Views Today</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="fileUploadsToday">-</div>
+                    <div class="stat-label">File Uploads Today</div>
+                </div>
+            </div>
+
+            <!-- Charts Row 1 -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px;">
+                <div class="chart-container">
+                    <h3 class="chart-title">📊 Event Types Distribution</h3>
+                    <canvas id="eventTypesChart"></canvas>
+                </div>
+                <div class="chart-container">
+                    <h3 class="chart-title">⏰ Hourly Activity (Today)</h3>
+                    <canvas id="hourlyChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Charts Row 2 -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px;">
+                <div class="chart-container">
+                    <h3 class="chart-title">📈 Daily Events (Last 7 Days)</h3>
+                    <canvas id="dailyChart"></canvas>
+                </div>
+                <div class="chart-container">
+                    <h3 class="chart-title">🔍 Most Viewed Products</h3>
+                    <canvas id="productsChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Recent Searches -->
+            <div class="chart-container">
+                <h3 class="chart-title">🔍 Recent Search Queries</h3>
+                <div id="recentSearches"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let charts = {};
+
+        async function loadDashboard() {
+            try {
+                document.getElementById('loading').style.display = 'block';
+                document.getElementById('dashboard').style.display = 'none';
+                document.getElementById('error').style.display = 'none';
+
+                // Firefox detection and special handling
+                const isFirefox = navigator.userAgent.toLowerCase().indexOf('firefox') > -1;
+                if (isFirefox) {
+                    console.log('Firefox detected - using enhanced fetch options');
+                }
+
+                const fetchOptions = {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    mode: 'cors',
+                    credentials: 'omit'  // Firefox sometimes needs this
+                };
+
+                // Load analytics data from API endpoints - Firefox compatible
+                const [statsResponse, productsResponse, searchesResponse, eventsResponse] = await Promise.all([
+                    fetch('/api/analytics/stats', fetchOptions),
+                    fetch('/api/analytics/products/most-viewed?limit=10', fetchOptions),
+                    fetch('/api/analytics/searches/recent', fetchOptions),
+                    fetch('/api/analytics/events/counts', fetchOptions)
+                ]);
+
+                if (!statsResponse.ok) throw new Error(`Stats API failed: ${statsResponse.status}`);
+                if (!productsResponse.ok) throw new Error(`Products API failed: ${productsResponse.status}`);
+                if (!searchesResponse.ok) throw new Error(`Searches API failed: ${searchesResponse.status}`);
+                if (!eventsResponse.ok) throw new Error(`Events API failed: ${eventsResponse.status}`);
+
+                const stats = await statsResponse.json();
+                const products = await productsResponse.json();
+                const searches = await searchesResponse.json();
+                const events = await eventsResponse.json();
+
+                // Update stats
+                updateStats(stats);
+                
+                // Create charts
+                createEventTypesChart(events);
+                createHourlyChart(stats.hourlyEventCounts);
+                createDailyChart(stats.dailyEventCounts);
+                createProductsChart(products);
+                updateRecentSearches(searches);
+
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('dashboard').style.display = 'block';
+
+            } catch (error) {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('error').innerHTML = '<p><strong>Error loading dashboard:</strong> ' + error.message + '</p><p>Please check that the server is running and try refreshing the page.</p>';
+            }
+        }
+
+        function updateStats(stats) {
+            document.getElementById('totalEventsToday').textContent = stats.totalEventsToday || 0;
+            document.getElementById('productViewsToday').textContent = stats.productViewsToday || 0;
+            document.getElementById('pageViewsToday').textContent = stats.pageViewsToday || 0;
+            document.getElementById('fileUploadsToday').textContent = stats.fileUploadsToday || 0;
+        }
+
+        function createEventTypesChart(events) {
+            const ctx = document.getElementById('eventTypesChart').getContext('2d');
+            
+            if (charts.eventTypes) {
+                charts.eventTypes.destroy();
+            }
+
+            const labels = Object.keys(events);
+            const data = Object.values(events);
+            const colors = ['#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe', '#00f2fe'];
+
+            charts.eventTypes = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: colors.slice(0, labels.length),
+                        borderWidth: 2,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+        }
+
+        function createHourlyChart(hourlyData) {
+            const ctx = document.getElementById('hourlyChart').getContext('2d');
+            
+            if (charts.hourly) {
+                charts.hourly.destroy();
+            }
+
+            // Process hourly data
+            const hours = Array.from({length: 24}, (_, i) => i);
+            const datasets = {};
+
+            if (hourlyData && hourlyData.length > 0) {
+                hourlyData.forEach(item => {
+                    const hour = item[0];
+                    const eventType = item[1];
+                    const count = item[2];
+                    
+                    if (!datasets[eventType]) {
+                        datasets[eventType] = new Array(24).fill(0);
+                    }
+                    datasets[eventType][hour] = count;
+                });
+            }
+
+            const eventTypes = Object.keys(datasets);
+            const colors = ['#667eea', '#764ba2', '#f093fb', '#f5576c'];
+
+            charts.hourly = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: hours.map(h => h + ':00'),
+                    datasets: eventTypes.map((type, index) => ({
+                        label: type,
+                        data: datasets[type],
+                        borderColor: colors[index % colors.length],
+                        backgroundColor: colors[index % colors.length] + '20',
+                        tension: 0.4,
+                        fill: false
+                    }))
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        function createDailyChart(dailyData) {
+            const ctx = document.getElementById('dailyChart').getContext('2d');
+            
+            if (charts.daily) {
+                charts.daily.destroy();
+            }
+
+            // Process daily data
+            const datasets = {};
+            const labels = [];
+
+            if (dailyData && dailyData.length > 0) {
+                dailyData.forEach(item => {
+                    const date = item[0];
+                    const eventType = item[1];
+                    const count = item[2];
+                    
+                    if (!labels.includes(date)) {
+                        labels.push(date);
+                    }
+                    
+                    if (!datasets[eventType]) {
+                        datasets[eventType] = {};
+                    }
+                    datasets[eventType][date] = count;
+                });
+            }
+
+            const eventTypes = Object.keys(datasets);
+            const colors = ['#667eea', '#764ba2', '#f093fb', '#f5576c'];
+
+            charts.daily = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: eventTypes.map((type, index) => ({
+                        label: type,
+                        data: labels.map(date => datasets[type][date] || 0),
+                        backgroundColor: colors[index % colors.length] + '80',
+                        borderColor: colors[index % colors.length],
+                        borderWidth: 1
+                    }))
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            stacked: true
+                        },
+                        x: {
+                            stacked: true
+                        }
+                    }
+                }
+            });
+        }
+
+        function createProductsChart(products) {
+            const ctx = document.getElementById('productsChart').getContext('2d');
+            
+            if (charts.products) {
+                charts.products.destroy();
+            }
+
+            const labels = products.map(p => `Product ${p.productId.toString().substring(0, 8)}...`);
+            const data = products.map(p => p.viewCount);
+
+            charts.products = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Views',
+                        data: data,
+                        backgroundColor: '#667eea80',
+                        borderColor: '#667eea',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateRecentSearches(searches) {
+            const container = document.getElementById('recentSearches');
+            
+            if (searches && searches.length > 0) {
+                container.innerHTML = searches.map(search => {
+                    try {
+                        const data = JSON.parse(search);
+                        return `<div style="padding: 10px; margin: 5px 0; background: #f8f9fa; border-radius: 5px; border-left: 4px solid #667eea;">
+                            <strong>${data.query || 'Unknown query'}</strong>
+                        </div>`;
+                    } catch (e) {
+                        return `<div style="padding: 10px; margin: 5px 0; background: #f8f9fa; border-radius: 5px; border-left: 4px solid #667eea;">
+                            <strong>${search}</strong>
+                        </div>`;
+                    }
+                }).join('');
+            } else {
+                container.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">No recent searches</div>';
+            }
+        }
+
+        // Load dashboard on page load
+        document.addEventListener('DOMContentLoaded', loadDashboard);
+
+        // Auto-refresh every 5 minutes
+        setInterval(loadDashboard, 5 * 60 * 1000);
+    </script>
+</body>
+</html>

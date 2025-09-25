@@ -1,3 +1,45 @@
+# Local secrets and env files
+src/main/resources/application-local.properties
+src/main/resources/application-prod.properties
+.env
+.env.local
+.env.prod
+.env.production
+*.env
+
+# Production secrets and configs
+application-prod.properties
+application-local.properties
+secrets.properties
+config.properties
+
+# Database credentials
+database.properties
+db.properties
+
+# Cloud provider configs
+aws-credentials.properties
+azure-credentials.properties
+gcp-credentials.json
+
+# SSL certificates
+*.p12
+*.jks
+*.keystore
+*.truststore
+
+# Backup files
+*.bak
+*.backup
+
+# IDE / Build
+/target/
+*.iml
+.idea/
+.classpath
+.project
+.settings/
+
 # Compiled class file
 *.class
 

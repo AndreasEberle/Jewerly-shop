@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analytics API Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .loading { background-color: #fff3cd; border-color: #ffeaa7; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>Analytics API Test</h1>
+    
+    <button onclick="testAllEndpoints()">Test All Endpoints</button>
+    <button onclick="clearResults()">Clear Results</button>
+    
+    <div id="results"></div>
+
+    <script>
+        async function testEndpoint(name, url) {
+            const resultDiv = document.createElement('div');
+            resultDiv.className = 'test-section loading';
+            resultDiv.innerHTML = `<h3>${name}</h3><p>Testing ${url}...</p>`;
+            document.getElementById('results').appendChild(resultDiv);
+            
+            try {
+                console.log(`Testing: ${url}`);
+                const response = await fetch(url);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const contentType = response.headers.get('content-type');
+                let data;
+                
+                if (contentType && contentType.includes('application/json')) {
+                    data = await response.json();
+                } else {
+                    data = await response.text();
+                }
+                
+                resultDiv.className = 'test-section success';
+                resultDiv.innerHTML = `
+                    <h3>✅ ${name}</h3>
+                    <p><strong>URL:</strong> ${url}</p>
+                    <p><strong>Status:</strong> ${response.status} ${response.statusText}</p>
+                    <p><strong>Content-Type:</strong> ${contentType}</p>
+                    <p><strong>Response:</strong></p>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+                
+                return { success: true, data };
+                
+            } catch (error) {
+                console.error(`Error testing ${url}:`, error);
+                resultDiv.className = 'test-section error';
+                resultDiv.innerHTML = `
+                    <h3>❌ ${name}</h3>
+                    <p><strong>URL:</strong> ${url}</p>
+                    <p><strong>Error:</strong> ${error.message}</p>
+                    <p><strong>Error Type:</strong> ${error.constructor.name}</p>
+                `;
+                
+                return { success: false, error: error.message };
+            }
+        }
+        
+        async function testAllEndpoints() {
+            clearResults();
+            
+            const endpoints = [
+                { name: 'Health Check', url: '/api/analytics/health' },
+                { name: 'Dashboard Stats', url: '/api/analytics/stats' },
+                { name: 'Event Counts', url: '/api/analytics/events/counts' },
+                { name: 'Most Viewed Products', url: '/api/analytics/products/most-viewed?limit=5' },
+                { name: 'Recent Searches', url: '/api/analytics/searches/recent' }
+            ];
+            
+            for (const endpoint of endpoints) {
+                await testEndpoint(endpoint.name, endpoint.url);
+                // Small delay to make it easier to follow
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+        }
+        
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+        }
+        
+        // Test one endpoint on page load
+        window.onload = () => {
+            testEndpoint('Health Check', '/api/analytics/health');
+        };
+    </script>
+</body>
+</html>

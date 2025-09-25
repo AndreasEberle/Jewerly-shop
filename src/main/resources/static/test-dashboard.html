@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Analytics Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <h1>Test Analytics Dashboard</h1>
+    <div id="status">Loading...</div>
+    <canvas id="testChart" width="400" height="200"></canvas>
+
+    <script>
+        async function testDashboard() {
+            try {
+                // Test API connection
+                const response = await fetch('/api/analytics/stats');
+                const data = await response.json();
+                
+                document.getElementById('status').innerHTML = 
+                    `✅ API Working! Total Events: ${data.totalEventsToday}`;
+                
+                // Test Chart.js
+                const ctx = document.getElementById('testChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Product Views', 'Page Views', 'File Uploads'],
+                        datasets: [{
+                            data: [data.productViewsToday, data.pageViewsToday, data.fileUploadsToday],
+                            backgroundColor: ['#667eea', '#764ba2', '#f093fb']
+                        }]
+                    }
+                });
+                
+            } catch (error) {
+                document.getElementById('status').innerHTML = 
+                    `❌ Error: ${error.message}`;
+                console.error('Dashboard test error:', error);
+            }
+        }
+        
+        testDashboard();
+    </script>
+</body>
+</html>

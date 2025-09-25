@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Analytics Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }
+        .test-btn { padding: 10px 20px; margin: 10px; background: #007bff; color: white; border: none; cursor: pointer; border-radius: 5px; }
+        .test-btn:hover { background: #0056b3; }
+        .result { margin: 20px 0; padding: 15px; border-radius: 5px; white-space: pre-wrap; }
+        .success { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+        .error { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+        .info { background: #d1ecf1; border: 1px solid #bee5eb; color: #0c5460; }
+    </style>
+</head>
+<body>
+    <h1>Simple Analytics API Test</h1>
+    <p>This page tests each analytics endpoint individually to isolate the issue.</p>
+    
+    <button class="test-btn" onclick="testAllEndpoints()">🧪 Test All Endpoints</button>
+    <button class="test-btn" onclick="testEventsOnly()">🎯 Test Events Endpoint Only</button>
+    <button class="test-btn" onclick="clearResults()">🗑️ Clear Results</button>
+    
+    <div id="results"></div>
+
+    <script>
+        function log(message, type = 'info') {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `result ${type}`;
+            div.textContent = new Date().toLocaleTimeString() + ': ' + message;
+            results.appendChild(div);
+            console.log(message);
+        }
+
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+        }
+
+        async function testEndpoint(name, url) {
+            log(`Testing ${name}: ${url}`);
+            
+            try {
+                const response = await fetch(url);
+                log(`Response: ${response.status} ${response.statusText}`, response.ok ? 'success' : 'error');
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log(`Data: ${JSON.stringify(data, null, 2)}`, 'success');
+                    return { success: true, data };
+                } else {
+                    const text = await response.text();
+                    log(`Error response body: ${text}`, 'error');
+                    return { success: false, error: `${response.status} ${response.statusText}` };
+                }
+            } catch (error) {
+                log(`Fetch error: ${error.name}: ${error.message}`, 'error');
+                log(`Error stack: ${error.stack}`, 'error');
+                return { success: false, error: error.message };
+            }
+        }
+
+        async function testEventsOnly() {
+            log('=== Testing Events Endpoint Only ===');
+            await testEndpoint('Events Count', '/api/analytics/events/counts');
+        }
+
+        async function testAllEndpoints() {
+            log('=== Starting Full Analytics Test ===');
+            
+            const endpoints = [
+                { name: 'Health Check', url: '/api/analytics/health' },
+                { name: 'Dashboard Stats', url: '/api/analytics/stats' },
+                { name: 'Most Viewed Products', url: '/api/analytics/products/most-viewed?limit=5' },
+                { name: 'Recent Searches', url: '/api/analytics/searches/recent' },
+                { name: 'Events Simple (Hardcoded)', url: '/api/analytics/events/simple' },
+                { name: 'Events Count (Original)', url: '/api/analytics/events/counts' }
+            ];
+            
+            for (const endpoint of endpoints) {
+                await testEndpoint(endpoint.name, endpoint.url);
+                // Small delay between requests
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+            
+            log('=== Test Complete ===');
+        }
+
+        // Auto-test on page load
+        window.addEventListener('load', () => {
+            log('Page loaded, testing events endpoint...');
+            setTimeout(testEventsOnly, 1000);
+        });
+    </script>
+</body>
+</html>
