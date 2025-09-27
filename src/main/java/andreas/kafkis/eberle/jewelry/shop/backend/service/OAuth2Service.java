@@ -2,7 +2,6 @@ package andreas.kafkis.eberle.jewelry.shop.backend.service;
 
 import java.util.Optional;
 import java.util.Set;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
