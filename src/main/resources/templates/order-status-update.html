@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order Status Update</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #e8f4fd; padding: 20px; text-align: center; border-radius: 5px; }
+        .content { padding: 20px 0; }
+        .status { font-size: 24px; font-weight: bold; color: #d4af37; text-align: center; margin: 20px 0; }
+        .footer { text-align: center; margin-top: 30px; color: #666; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📦 Order Status Update</h1>
+        </div>
+        
+        <div class="content">
+            <p>Dear <span th:text="${customer.firstName}">Customer</span>,</p>
+            
+            <p>Your order <strong th:text="${order.orderNumber}">ORD-123456</strong> status has been updated:</p>
+            
+            <div class="status" th:text="${status}">CONFIRMED</div>
+            
+            <p th:if="${status == 'CONFIRMED'}">
+                Your order has been confirmed and is being prepared for shipment. We'll notify you when it ships.
+            </p>
+            <p th:if="${status == 'SHIPPED'}">
+                Great news! Your order has been shipped and is on its way to you. You should receive it soon.
+            </p>
+            <p th:if="${status == 'DELIVERED'}">
+                Your order has been delivered! We hope you love your new jewelry. Thank you for shopping with us!
+            </p>
+            <p th:if="${status == 'CANCELLED'}">
+                Your order has been cancelled. If you have any questions, please contact our support team.
+            </p>
+            
+            <p><strong>Update Date:</strong> <span th:text="${updateDate}">January 1, 2024</span></p>
+        </div>
+        
+        <div class="footer">
+            <p>Best regards,<br>The Jewelry Shop Team</p>
+            <p><small>This is an automated message. Please do not reply to this email.</small></p>
+        </div>
+    </div>
+</body>
+</html>

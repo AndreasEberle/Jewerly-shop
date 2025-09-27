@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order Confirmation</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #f8f9fa; padding: 20px; text-align: center; border-radius: 5px; }
+        .content { padding: 20px 0; }
+        .order-details { background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0; }
+        .item { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; }
+        .total { font-weight: bold; font-size: 18px; color: #d4af37; }
+        .footer { text-align: center; margin-top: 30px; color: #666; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>✨ Order Confirmation ✨</h1>
+            <p>Thank you for your purchase!</p>
+        </div>
+        
+        <div class="content">
+            <p>Dear <span th:text="${customer.firstName}">Customer</span>,</p>
+            
+            <p>Your order has been confirmed and is being processed. Here are the details:</p>
+            
+            <div class="order-details">
+                <h3>Order Information</h3>
+                <p><strong>Order Number:</strong> <span th:text="${order.orderNumber}">ORD-123456</span></p>
+                <p><strong>Order Date:</strong> <span th:text="${orderDate}">January 1, 2024</span></p>
+                <p><strong>Status:</strong> <span th:text="${order.status}">PENDING</span></p>
+            </div>
+            
+            <div class="order-details">
+                <h3>Order Items</h3>
+                <div th:each="item : ${order.orderItems}" class="item">
+                    <div>
+                        <strong th:text="${item.product.name}">Product Name</strong><br>
+                        <small th:text="${item.product.sku}">SKU: ABC123</small>
+                    </div>
+                    <div>
+                        <span th:text="${item.quantity}">1</span> x $<span th:text="${item.unitPrice}">99.99</span>
+                    </div>
+                </div>
+                
+                <div class="item">
+                    <div>Subtotal:</div>
+                    <div>$<span th:text="${order.subtotal}">99.99</span></div>
+                </div>
+                <div class="item">
+                    <div>Tax:</div>
+                    <div>$<span th:text="${order.taxAmount}">8.00</span></div>
+                </div>
+                <div class="item">
+                    <div>Shipping:</div>
+                    <div>$<span th:text="${order.shippingAmount}">9.99</span></div>
+                </div>
+                <div class="item total">
+                    <div>Total:</div>
+                    <div>$<span th:text="${totalAmount}">117.98</span></div>
+                </div>
+            </div>
+            
+            <p>We'll send you another email when your order ships. If you have any questions, please contact our support team.</p>
+        </div>
+        
+        <div class="footer">
+            <p>Best regards,<br>The Jewelry Shop Team</p>
+            <p><small>This is an automated message. Please do not reply to this email.</small></p>
+        </div>
+    </div>
+</body>
+</html>

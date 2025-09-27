@@ -1,5 +1,7 @@
 package andreas.kafkis.eberle.jewelry.shop.backend.entities;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -19,6 +21,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -32,7 +35,7 @@ import lombok.NoArgsConstructor;
 @Entity
 @Table(name = "orders")
 public class Order {
-    public enum Status { CREATED, PAID, SHIPPED, DELIVERED, CANCELLED }
+    public enum OrderStatus { PENDING, CONFIRMED, SHIPPED, DELIVERED, CANCELLED, REFUNDED }
 
     @Id
     @GeneratedValue
@@ -41,11 +44,11 @@ public class Order {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
-    private User user;
+    private User customer;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    private Status status = Status.CREATED;
+    private OrderStatus status = OrderStatus.PENDING;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "shipping_address_id")
@@ -55,14 +58,32 @@ public class Order {
     @JoinColumn(name = "billing_address_id")
     private Address billingAddress;
 
-    @Column(name = "total_cents", nullable = false)
-    private Long totalCents;
+    @Column(name = "order_number", unique = true)
+    private String orderNumber;
 
-    @Column(nullable = false, length = 3)
-    private String currency = "EUR";
+    @Column(name = "subtotal", precision = 10, scale = 2)
+    private BigDecimal subtotal;
+
+    @Column(name = "tax_amount", precision = 10, scale = 2)
+    private BigDecimal taxAmount;
+
+    @Column(name = "shipping_amount", precision = 10, scale = 2)
+    private BigDecimal shippingAmount;
+
+    @Column(name = "total_amount", precision = 10, scale = 2)
+    private BigDecimal totalAmount;
+
+    @Column(name = "notes", length = 1000)
+    private String notes;
+
+    @Column(name = "order_date")
+    private LocalDateTime orderDate;
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<OrderItem> items = new ArrayList<>();
+    private List<OrderItem> orderItems = new ArrayList<>();
+
+    @OneToOne(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Payment payment;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false)

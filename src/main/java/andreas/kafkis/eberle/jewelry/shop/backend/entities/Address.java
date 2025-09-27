@@ -36,11 +36,11 @@ public class Address {
     @JoinColumn(name = "user_id")
     private User user;
 
-    @Column(nullable = false, length = 255)
-    private String line1;
+    @Column(name = "street", nullable = false, length = 255)
+    private String street;
 
-    @Column(length = 255)
-    private String line2;
+    @Column(name = "apartment", length = 255)
+    private String apartment;
 
     @Column(nullable = false, length = 100)
     private String city;

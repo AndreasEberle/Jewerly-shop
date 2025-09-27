@@ -1,6 +1,7 @@
 package andreas.kafkis.eberle.jewelry.shop.backend.entities;
 
-import java.time.OffsetDateTime;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 import org.hibernate.annotations.CreationTimestamp;
@@ -28,7 +29,7 @@ import lombok.NoArgsConstructor;
 @Entity
 @Table(name = "payments")
 public class Payment {
-    public enum Status { PENDING, COMPLETED, FAILED, REFUNDED }
+    public enum PaymentStatus { PENDING, SUCCESS, FAILED, REFUNDED }
 
     @Id
     @GeneratedValue
@@ -39,29 +40,35 @@ public class Payment {
     @JoinColumn(name = "order_id", nullable = false)
     private Order order;
 
-    @Column(name = "amount_cents", nullable = false)
-    private Long amountCents;
+    @Column(name = "payment_method", nullable = false, length = 50)
+    private String paymentMethod;
 
-    @Column(nullable = false, length = 3)
-    private String currency = "EUR";
+    @Column(name = "amount", nullable = false, precision = 10, scale = 2)
+    private BigDecimal amount;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    private Status status = Status.PENDING;
+    private PaymentStatus status = PaymentStatus.PENDING;
 
-    @Column(length = 50)
-    private String provider;
+    @Column(name = "transaction_id", length = 255)
+    private String transactionId;
 
-    @Column(name = "provider_ref", length = 255)
-    private String providerRef;
+    @Column(name = "processed_at")
+    private LocalDateTime processedAt;
+
+    @Column(name = "failure_reason", length = 500)
+    private String failureReason;
+
+    @Column(name = "notes", length = 1000)
+    private String notes;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false)
-    private OffsetDateTime createdAt;
+    private LocalDateTime createdAt;
 
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
-    private OffsetDateTime updatedAt;
+    private LocalDateTime updatedAt;
 }
 
 

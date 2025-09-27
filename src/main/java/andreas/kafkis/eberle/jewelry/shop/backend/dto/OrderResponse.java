@@ -1,0 +1,34 @@
+package andreas.kafkis.eberle.jewelry.shop.backend.dto;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.UUID;
+
+import andreas.kafkis.eberle.jewelry.shop.backend.entities.Order;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@Builder
+@AllArgsConstructor
+@NoArgsConstructor
+public class OrderResponse {
+    
+    private UUID id;
+    private String orderNumber;
+    private Order.OrderStatus status;
+    private BigDecimal totalAmount;
+    private BigDecimal taxAmount;
+    private BigDecimal shippingAmount;
+    private LocalDateTime orderDate;
+    private LocalDateTime updatedAt;
+    private String notes;
+    private UserInfo customer;
+    private AddressInfo shippingAddress;
+    private AddressInfo billingAddress;
+    private List<OrderItemInfo> items;
+    private PaymentInfo payment;
+}
