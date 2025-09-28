@@ -1,12 +1,9 @@
 package andreas.kafkis.eberle.jewelry.shop.backend.service;
 
-import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,35 +11,46 @@ import andreas.kafkis.eberle.jewelry.shop.backend.entities.SystemConfig;
 import andreas.kafkis.eberle.jewelry.shop.backend.repository.SystemConfigRepository;
 
 @Service
-@Transactional
 public class SystemConfigService {
 
     @Autowired
     private SystemConfigRepository systemConfigRepository;
 
+    @Transactional(readOnly = true)
+    public List<SystemConfig> getAllConfigs() {
+        return systemConfigRepository.findAll();
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<SystemConfig> getConfig(String key) {
+        return systemConfigRepository.findByConfigKey(key);
+    }
+
     /**
-     * Get configuration value by key with caching
+     * Update configuration value
      */
-    @Cacheable(value = "systemConfig", key = "#configKey")
-    public String getConfigValue(String configKey) {
-        return systemConfigRepository.findByConfigKey(configKey)
+    @Transactional
+    public SystemConfig updateConfigValue(String key, String value) {
+        SystemConfig config = systemConfigRepository.findByConfigKey(key)
+                .orElseThrow(() -> new IllegalArgumentException("System config key not found: " + key));
+        config.setConfigValue(value);
+        return systemConfigRepository.save(config);
+    }
+
+    /**
+     * Get configuration value as string
+     */
+    public String getConfigValue(String key) {
+        return systemConfigRepository.findByConfigKey(key)
                 .map(SystemConfig::getConfigValue)
                 .orElse(null);
     }
 
     /**
-     * Get configuration value with default fallback
+     * Get configuration value as boolean
      */
-    public String getConfigValue(String configKey, String defaultValue) {
-        String value = getConfigValue(configKey);
-        return value != null ? value : defaultValue;
-    }
-
-    /**
-     * Get boolean configuration value
-     */
-    public boolean getBooleanConfigValue(String configKey, boolean defaultValue) {
-        String value = getConfigValue(configKey);
+    public boolean getBooleanConfig(String key, boolean defaultValue) {
+        String value = getConfigValue(key);
         if (value == null) {
             return defaultValue;
         }
@@ -50,136 +58,111 @@ public class SystemConfigService {
     }
 
     /**
-     * Update configuration value and clear cache
+     * Check if 2FA is globally enabled
      */
-    @CacheEvict(value = "systemConfig", key = "#configKey")
-    public void updateConfigValue(String configKey, String configValue) {
-        if (systemConfigRepository.existsByConfigKey(configKey)) {
-            systemConfigRepository.updateConfigValue(configKey, configValue);
+    public boolean is2FAEnabled() {
+        return getBooleanConfig("2FA_ENABLED", false);
+    }
+
+    /**
+     * Check if S3 storage is enabled
+     */
+    public boolean isS3StorageEnabled() {
+        return getBooleanConfig("USE_S3_STORAGE", false);
+    }
+
+    /**
+     * Check if debug mode is enabled
+     */
+    public boolean isDebugMode() {
+        return getBooleanConfig("DEBUG_MODE", true);
+    }
+
+    /**
+     * Set configuration value
+     */
+    public void setConfigValue(String key, String value) {
+        Optional<SystemConfig> existing = systemConfigRepository.findByConfigKey(key);
+        if (existing.isPresent()) {
+            SystemConfig config = existing.get();
+            config.setConfigValue(value);
+            systemConfigRepository.save(config);
         } else {
-            // Create new config if it doesn't exist
-            SystemConfig config = SystemConfig.builder()
-                    .configKey(configKey)
-                    .configValue(configValue)
-                    .createdAt(OffsetDateTime.now())
-                    .updatedAt(OffsetDateTime.now())
-                    .build();
+            SystemConfig config = new SystemConfig();
+            config.setConfigKey(key);
+            config.setConfigValue(value);
             systemConfigRepository.save(config);
         }
     }
 
     /**
-     * Get all configurations
+     * Set boolean configuration value
      */
-    public List<SystemConfig> getAllConfigs() {
-        return systemConfigRepository.findAll();
+    public void setBooleanConfig(String key, boolean value) {
+        setConfigValue(key, String.valueOf(value));
+    }
+
+    public boolean isMaintenanceMode() {
+        return getConfig("MAINTENANCE_MODE")
+                .map(config -> Boolean.parseBoolean(config.getConfigValue()))
+                .orElse(false); // Default to false if not configured
+    }
+
+    public void setMaintenanceMode(boolean enabled) {
+        updateConfigValue("MAINTENANCE_MODE", String.valueOf(enabled));
+    }
+
+    public String getS3BucketName() {
+        return getConfig("S3_BUCKET_NAME")
+                .map(SystemConfig::getConfigValue)
+                .orElseThrow(() -> new IllegalStateException("S3 bucket name not configured"));
+    }
+
+    public String getS3Region() {
+        return getConfig("S3_REGION")
+                .map(SystemConfig::getConfigValue)
+                .orElseThrow(() -> new IllegalStateException("S3 region not configured"));
+    }
+
+    public String getLocalStoragePath() {
+        return getConfig("LOCAL_STORAGE_PATH")
+                .map(SystemConfig::getConfigValue)
+                .orElseThrow(() -> new IllegalStateException("Local storage path not configured"));
+    }
+
+    public String getPublicBaseUrl() {
+        return getConfig("PUBLIC_BASE_URL")
+                .map(SystemConfig::getConfigValue)
+                .orElseThrow(() -> new IllegalStateException("Public base URL not configured"));
+    }
+
+    public String getStorageType() {
+        return getConfig("USE_S3_STORAGE")
+                .map(config -> Boolean.parseBoolean(config.getConfigValue()) ? "S3" : "LOCAL")
+                .orElseThrow(() -> new IllegalStateException("Storage type not configured"));
+    }
+
+    public void setStorageType(String storageType) {
+        updateConfigValue("USE_S3_STORAGE", String.valueOf("S3".equalsIgnoreCase(storageType)));
     }
 
     /**
-     * Get configuration by key
+     * Create a new configuration entry
      */
-    public Optional<SystemConfig> getConfig(String configKey) {
-        return systemConfigRepository.findByConfigKey(configKey);
-    }
-
-    /**
-     * Create new configuration
-     */
-    @CacheEvict(value = "systemConfig", allEntries = true)
+    @Transactional
     public SystemConfig createConfig(String key, String value, String description) {
-        if (systemConfigRepository.findByConfigKey(key).isPresent()) {
-            throw new IllegalArgumentException("Config key already exists: " + key);
-        }
-        SystemConfig newConfig = SystemConfig.builder()
-                .configKey(key)
-                .configValue(value)
-                .description(description)
-                .build();
-        return systemConfigRepository.save(newConfig);
-    }
-
-    /**
-     * Update configuration
-     */
-    @CacheEvict(value = "systemConfig", allEntries = true)
-    public SystemConfig updateConfig(String key, String value) {
-        SystemConfig config = systemConfigRepository.findByConfigKey(key)
-                .orElseThrow(() -> new IllegalArgumentException("Config key not found: " + key));
+        SystemConfig config = new SystemConfig();
+        config.setConfigKey(key);
         config.setConfigValue(value);
+        config.setDescription(description);
         return systemConfigRepository.save(config);
     }
 
     /**
-     * Delete configuration
+     * Update configuration value (alias for updateConfigValue)
      */
-    @CacheEvict(value = "systemConfig", allEntries = true)
-    public void deleteConfig(String key) {
-        SystemConfig config = systemConfigRepository.findByConfigKey(key)
-                .orElseThrow(() -> new IllegalArgumentException("Config key not found: " + key));
-        systemConfigRepository.delete(config);
-    }
-
-    /**
-     * Storage-specific configuration methods
-     */
-    public String getStorageType() {
-        return getConfigValue("storage.type", "local");
-    }
-
-    public void setStorageType(String storageType) {
-        updateConfigValue("storage.type", storageType);
-    }
-
-    public String getS3BucketName() {
-        return getConfigValue("storage.s3.bucket-name", "");
-    }
-
-    public String getS3Region() {
-        return getConfigValue("storage.s3.region", "us-east-1");
-    }
-
-    public String getLocalStoragePath() {
-        return getConfigValue("storage.local.base-path", "uploads");
-    }
-
-    public String getPublicBaseUrl() {
-        return getConfigValue("storage.public-base-url", "http://localhost:8080/files/");
-    }
-
-    /**
-     * Email-specific configuration methods
-     */
-    public boolean isEmailEnabled() {
-        return getBooleanConfigValue("email.enabled", true);
-    }
-
-    public String getEmailFrom() {
-        return getConfigValue("email.from", "noreply@jewelryshop.com");
-    }
-
-    public String getEmailAdmin() {
-        return getConfigValue("email.admin", "admin@jewelryshop.com");
-    }
-
-    /**
-     * Backup-specific configuration methods
-     */
-    public boolean isBackupEnabled() {
-        return getBooleanConfigValue("backup.enabled", true);
-    }
-
-    public String getBackupMethod() {
-        return getConfigValue("backup.method", "jdbc");
-    }
-
-    /**
-     * Maintenance mode
-     */
-    public boolean isMaintenanceMode() {
-        return getBooleanConfigValue("maintenance.mode", false);
-    }
-
-    public void setMaintenanceMode(boolean enabled) {
-        updateConfigValue("maintenance.mode", String.valueOf(enabled));
+    @Transactional
+    public SystemConfig updateConfig(String key, String value) {
+        return updateConfigValue(key, value);
     }
 }

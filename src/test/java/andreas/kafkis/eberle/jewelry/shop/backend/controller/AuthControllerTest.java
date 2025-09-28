@@ -21,6 +21,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -67,7 +68,7 @@ class AuthControllerTest {
     @BeforeEach
     void setUp() {
         customerRole = new Role();
-        customerRole.setId(1);
+        
         customerRole.setName("CUSTOMER");
 
         testUser = new User();
@@ -153,6 +154,7 @@ class AuthControllerTest {
     }
 
     @Test
+    @WithMockUser(username = "test@example.com", roles = {"CUSTOMER"})
     void getCurrentUser_WhenValidToken_ShouldReturnUserInfo() throws Exception {
         // Given
         when(jwtService.extractUsername(anyString())).thenReturn("test@example.com");

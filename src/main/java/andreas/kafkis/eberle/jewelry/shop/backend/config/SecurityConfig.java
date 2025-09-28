@@ -12,7 +12,6 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
@@ -27,16 +26,18 @@ public class SecurityConfig {
 
     private final UserDetailsService userDetailsService;
     private final OAuth2AuthenticationSuccessHandler oauth2AuthenticationSuccessHandler;
+    private final JwtCookieAuthenticationFilter jwtCookieAuthFilter;
+    private final PasswordEncoder passwordEncoder;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http, JwtAuthenticationFilter jwtAuthFilter) throws Exception {
         http
             .csrf(AbstractHttpConfigurer::disable)
             .authorizeHttpRequests(authz -> authz
-                // Public endpoints
-                .requestMatchers("/api/auth/**").permitAll()
-                .requestMatchers("/api/products/**").permitAll() // Products viewable by all
-                .requestMatchers("/actuator/**").permitAll()
+                // Public endpoints - only what's truly needed
+                       .requestMatchers("/api/auth/login", "/api/auth/register", "/api/auth/oauth2/**", "/api/auth/verify-2fa", "/api/auth/2fa/setup", "/api/auth/2fa/verify-setup", "/api/auth/jwt/**", "/api/auth/debug/**", "/api/auth/oauth2/error", "/api/auth/oauth2/success", "/api/auth/oauth2/urls").permitAll()
+                .requestMatchers("/api/products", "/api/products/*", "/api/products/category/**").permitAll() // Only view products publicly
+                .requestMatchers("/api/products/*/images", "/api/products/*/images/*").permitAll() // Product images
                 .requestMatchers("/error").permitAll()
                 .requestMatchers("/login/oauth2/**").permitAll() // OAuth2 endpoints
                 .requestMatchers("/oauth2/**").permitAll()
@@ -44,11 +45,21 @@ public class SecurityConfig {
                 // Admin only endpoints
                 .requestMatchers("/api/backup/**").hasRole("ADMIN")
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                .requestMatchers("/api/health/**").hasAnyRole("ADMIN") // Health checks - authenticated users
+                .requestMatchers("/swagger-ui/**").hasRole("ADMIN") // Swagger UI - admin only
+                .requestMatchers("/swagger-ui.html").hasRole("ADMIN") // Swagger UI - admin only
+                .requestMatchers("/swagger-ui-token").permitAll() // Token-based Swagger UI - public
+                .requestMatchers("/static/**").permitAll() // Static HTML files - public
+                .requestMatchers("/api-docs/**").hasRole("ADMIN") // OpenAPI docs - admin only
+                .requestMatchers("/v3/api-docs/**").hasRole("ADMIN") // OpenAPI v3 docs - admin only
+                .requestMatchers("/swagger-resources/**").hasRole("ADMIN") // Swagger resources - admin only
+                .requestMatchers("/webjars/**").hasRole("ADMIN") // WebJars - admin only
                 
                 // Customer endpoints (authenticated users)
                 .requestMatchers("/api/cart/**").hasAnyRole("CUSTOMER", "ADMIN")
                 .requestMatchers("/api/orders/**").hasAnyRole("CUSTOMER", "ADMIN")
                 .requestMatchers("/api/profile/**").authenticated()
+                .requestMatchers("/api/auth/check-admin").authenticated() // Check admin status - requires authentication
                 
                 // Everything else requires authentication
                 .anyRequest().authenticated()
@@ -60,22 +71,22 @@ public class SecurityConfig {
                 .successHandler(oauth2AuthenticationSuccessHandler)
                 .failureUrl("/api/auth/oauth2/error")
             )
+            .exceptionHandling(exceptions -> exceptions
+                .accessDeniedPage("/static/access-denied.html")
+            )
             .authenticationProvider(authenticationProvider())
+            .addFilterBefore(jwtCookieAuthFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
             
         return http.build();
     }
 
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
 
     @Bean
     public AuthenticationProvider authenticationProvider() {
         DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
         authProvider.setUserDetailsService(userDetailsService);
-        authProvider.setPasswordEncoder(passwordEncoder());
+        authProvider.setPasswordEncoder(passwordEncoder);
         return authProvider;
     }
 

@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Swagger UI - Jewelry Shop API</title>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            margin: 0; 
+            padding: 20px; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container { 
+            max-width: 1200px; 
+            margin: 0 auto; 
+            background: white; 
+            padding: 30px; 
+            border-radius: 12px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .header { 
+            text-align: center; 
+            margin-bottom: 30px; 
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 20px;
+        }
+        .header h1 {
+            color: #333;
+            margin: 0;
+            font-size: 2.5em;
+        }
+        .header p {
+            color: #666;
+            margin: 10px 0 0 0;
+            font-size: 1.1em;
+        }
+        .token-section { 
+            background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%); 
+            padding: 25px; 
+            border-radius: 10px; 
+            margin-bottom: 25px; 
+            border-left: 4px solid #2196f3;
+        }
+        .token-section h3 {
+            margin-top: 0;
+            color: #1976d2;
+            font-size: 1.4em;
+        }
+        .token-input { 
+            width: 100%; 
+            padding: 12px; 
+            margin: 10px 0; 
+            font-family: 'Courier New', monospace; 
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        .token-input:focus {
+            outline: none;
+            border-color: #2196f3;
+            box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.1);
+        }
+        .btn { 
+            padding: 12px 24px; 
+            background: #2196f3; 
+            color: white; 
+            border: none; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            margin: 8px; 
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        .btn:hover { 
+            background: #1976d2; 
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
+        }
+        .btn-secondary {
+            background: #6c757d;
+        }
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+        .swagger-frame { 
+            width: 100%; 
+            height: 80vh; 
+            border: none; 
+            border-radius: 8px; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .instructions {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 15px 0;
+            border-left: 4px solid #28a745;
+        }
+        .instructions h4 {
+            margin-top: 0;
+            color: #155724;
+        }
+        .instructions ol {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .instructions li {
+            margin: 5px 0;
+            color: #495057;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 6px;
+            margin: 10px 0;
+            font-weight: 500;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔐 Swagger UI - Admin Access</h1>
+            <p>API Documentation for Jewelry Shop Backend</p>
+        </div>
+        
+        <div class="token-section">
+            <h3>🔑 Authentication Token</h3>
+            <p>Enter your JWT token to access protected endpoints:</p>
+            <input type="text" id="jwtToken" class="token-input" placeholder="Enter JWT token here (with or without 'Bearer ' prefix)...">
+            <br>
+            <button class="btn" onclick="setToken()">🔐 Set Token</button>
+            <button class="btn btn-secondary" onclick="clearToken()">🗑️ Clear Token</button>
+            <button class="btn" onclick="openSwagger()">📚 Open Swagger UI</button>
+        </div>
+        
+        <div class="instructions">
+            <h4>📋 How to use:</h4>
+            <ol>
+                <li>Paste your JWT token in the input field above</li>
+                <li>Click "Set Token" to store it</li>
+                <li>Click "Open Swagger UI" to access the API documentation</li>
+                <li><strong>In Swagger UI:</strong> Click the "Authorize" button (🔒) in the top right</li>
+                <li><strong>Authorization:</strong> Paste your token as "Bearer YOUR_TOKEN" and click "Authorize"</li>
+                <li><strong>Note:</strong> Remove "Bearer " prefix if it's already in your token</li>
+                <li>Now you can test all protected endpoints!</li>
+            </ol>
+        </div>
+        
+        <div id="status"></div>
+        
+        <div id="swagger-container" style="display: none;">
+            <h3>📚 Swagger UI</h3>
+            <iframe id="swagger-frame" class="swagger-frame" src="/swagger-ui/index.html"></iframe>
+        </div>
+    </div>
+    
+    <script>
+        function showStatus(message, type = 'success') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
+            setTimeout(() => {
+                statusDiv.innerHTML = '';
+            }, 5000);
+        }
+        
+        function setToken() {
+            let token = document.getElementById('jwtToken').value.trim();
+            
+            if (!token) {
+                showStatus('Please enter a token first.', 'error');
+                return;
+            }
+            
+            // Remove "Bearer " prefix if present
+            if (token.startsWith('Bearer ')) {
+                token = token.substring(7);
+            }
+            
+            // Store token in localStorage
+            localStorage.setItem('swagger-jwt-token', token);
+            showStatus('✅ Token set successfully! You can now use the API endpoints.');
+        }
+        
+        function clearToken() {
+            localStorage.removeItem('swagger-jwt-token');
+            document.getElementById('jwtToken').value = '';
+            showStatus('🗑️ Token cleared.');
+        }
+        
+        function openSwagger() {
+            const token = localStorage.getItem('swagger-jwt-token');
+            if (!token) {
+                showStatus('Please set a token first.', 'error');
+                return;
+            }
+            
+            // Open custom Swagger UI with the token
+            const swaggerUrl = '/static/swagger-ui-custom.html?token=' + encodeURIComponent(token);
+            window.location.href = swaggerUrl;
+            
+            showStatus('📚 Opening Swagger UI with your token...');
+        }
+        
+        // Auto-fill token from URL parameter
+        window.onload = function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const token = urlParams.get('token');
+            if (token) {
+                document.getElementById('jwtToken').value = token.startsWith('Bearer ') ? token : 'Bearer ' + token;
+                setToken();
+            }
+            
+            // Check if token is already stored
+            const storedToken = localStorage.getItem('swagger-jwt-token');
+            if (storedToken) {
+                document.getElementById('jwtToken').value = 'Bearer ' + storedToken;
+            }
+        };
+    </script>
+</body>
+</html>

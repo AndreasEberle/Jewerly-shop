@@ -32,7 +32,7 @@ public class StorageService {
     @Value("${storage.s3.secret-key:}")
     private String s3SecretKey;
 
-    @Value("${storage.s3.region:us-east-1}")
+    @Value("${storage.s3.region:}")
     private String s3Region;
 
     /**

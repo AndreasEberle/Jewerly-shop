@@ -55,7 +55,7 @@ class EmailServiceTest {
     void setUp() {
         // Setup Role
         Role customerRole = new Role();
-        customerRole.setId(1);
+        
         customerRole.setName("CUSTOMER");
 
         // Setup User

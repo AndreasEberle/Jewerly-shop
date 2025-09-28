@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cookie Test - Jewelry Shop</title>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            padding: 40px; 
+            background-color: #f8f9fa; 
+            color: #333; 
+        }
+        .container { 
+            max-width: 800px; 
+            margin: 0 auto; 
+            background: #ffffff; 
+            padding: 30px; 
+            border-radius: 10px; 
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1); 
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: #f8f9fa;
+        }
+        .btn { 
+            padding: 10px 20px; 
+            background: #007bff; 
+            color: white; 
+            border: none; 
+            border-radius: 5px; 
+            cursor: pointer; 
+            margin: 5px;
+        }
+        .btn:hover { 
+            background: #0056b3; 
+        }
+        .result {
+            background: #e9ecef;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .success { color: #28a745; }
+        .error { color: #dc3545; }
+        .info { color: #17a2b8; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🍪 Cookie Authentication Test</h1>
+        <p>This page helps debug cookie-based authentication issues.</p>
+        
+        <div class="test-section">
+            <h3>1. Test OAuth2 Login</h3>
+            <p>Click this to login with Google and set cookies:</p>
+            <button class="btn" onclick="testOAuth2Login()">🔐 Login with Google</button>
+        </div>
+        
+        <div class="test-section">
+            <h3>2. Check Current Cookies</h3>
+            <p>See what cookies are currently set:</p>
+            <button class="btn" onclick="checkCookies()">🍪 Check Cookies</button>
+            <div id="cookieResult" class="result" style="display: none;"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>3. Test Debug Endpoint</h3>
+            <p>Call the debug endpoint to see authentication status:</p>
+            <button class="btn" onclick="testDebugEndpoint()">🔍 Test Debug Endpoint</button>
+            <div id="debugResult" class="result" style="display: none;"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>4. Test Admin Access</h3>
+            <p>Test if you can access admin endpoints:</p>
+            <button class="btn" onclick="testAdminAccess()">👑 Test Admin Access</button>
+            <div id="adminResult" class="result" style="display: none;"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>5. Clear Cookies</h3>
+            <p>Clear all cookies and start fresh:</p>
+            <button class="btn" onclick="clearCookies()" style="background: #dc3545;">🗑️ Clear All Cookies</button>
+        </div>
+    </div>
+    
+    <script>
+        function testOAuth2Login() {
+            window.location.href = '/oauth2/authorization/google';
+        }
+        
+        function checkCookies() {
+            const cookies = document.cookie;
+            const result = document.getElementById('cookieResult');
+            
+            if (cookies) {
+                const cookieArray = cookies.split(';').map(c => c.trim());
+                let output = `Found ${cookieArray.length} cookies:\n\n`;
+                cookieArray.forEach(cookie => {
+                    const [name, value] = cookie.split('=');
+                    output += `${name}: ${value ? value.substring(0, 50) + '...' : 'empty'}\n`;
+                });
+                result.textContent = output;
+                result.className = 'result success';
+            } else {
+                result.textContent = 'No cookies found';
+                result.className = 'result error';
+            }
+            result.style.display = 'block';
+        }
+        
+        async function testDebugEndpoint() {
+            const result = document.getElementById('debugResult');
+            result.textContent = 'Testing debug endpoint...';
+            result.className = 'result info';
+            result.style.display = 'block';
+            
+            try {
+                const response = await fetch('/api/auth/debug/cookies');
+                const data = await response.json();
+                
+                let output = `Debug Endpoint Response:\n\n`;
+                output += `Status: ${response.status}\n`;
+                output += `Cookie Count: ${data.cookieCount || 0}\n`;
+                output += `Has Auth: ${data.hasAuth}\n`;
+                output += `Is Authenticated: ${data.isAuthenticated}\n`;
+                output += `Is Anonymous: ${data.isAnonymous}\n`;
+                output += `Auth Type: ${data.authType}\n`;
+                output += `Principal: ${data.principal}\n`;
+                output += `Authorities: ${data.authorities}\n\n`;
+                
+                if (data.cookies) {
+                    output += `Cookies:\n`;
+                    Object.entries(data.cookies).forEach(([name, value]) => {
+                        output += `  ${name}: ${value ? value.substring(0, 50) + '...' : 'empty'}\n`;
+                    });
+                }
+                
+                if (data.error) {
+                    output += `\nError: ${data.error}`;
+                }
+                
+                result.textContent = output;
+                result.className = response.ok ? 'result success' : 'result error';
+                
+            } catch (error) {
+                result.textContent = `Error: ${error.message}`;
+                result.className = 'result error';
+            }
+        }
+        
+        async function testAdminAccess() {
+            const result = document.getElementById('adminResult');
+            result.textContent = 'Testing admin access...';
+            result.className = 'result info';
+            result.style.display = 'block';
+            
+            try {
+                const response = await fetch('/api/auth/check-admin');
+                const data = await response.json();
+                
+                let output = `Admin Access Test:\n\n`;
+                output += `Status: ${response.status}\n`;
+                output += `Authenticated: ${data.authenticated}\n`;
+                output += `Admin: ${data.admin}\n`;
+                output += `User: ${data.user || 'N/A'}\n`;
+                output += `Message: ${data.message || 'N/A'}\n`;
+                
+                if (data.error) {
+                    output += `\nError: ${data.error}`;
+                }
+                
+                result.textContent = output;
+                result.className = response.ok && data.authenticated ? 'result success' : 'result error';
+                
+            } catch (error) {
+                result.textContent = `Error: ${error.message}`;
+                result.className = 'result error';
+            }
+        }
+        
+        function clearCookies() {
+            // Clear all cookies by setting them to expire
+            document.cookie.split(";").forEach(function(c) { 
+                document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
+            });
+            
+            alert('All cookies cleared! Refresh the page to see the changes.');
+            location.reload();
+        }
+        
+        // Auto-check cookies on page load
+        window.onload = function() {
+            checkCookies();
+        };
+    </script>
+</body>
+</html>

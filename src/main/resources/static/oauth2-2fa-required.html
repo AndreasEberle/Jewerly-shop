@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2FA Required - Jewelry Shop</title>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            text-align: center; 
+            padding: 40px; 
+            background-color: #fff3cd; 
+            color: #333; 
+            line-height: 1.6; 
+        }
+        .container { 
+            max-width: 600px; 
+            margin: 0 auto; 
+            background: #ffffff; 
+            padding: 30px; 
+            border-radius: 10px; 
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1); 
+            border: 2px solid #ffc107;
+        }
+        .warning { 
+            color: #856404; 
+            font-size: 28px; 
+            margin-bottom: 15px; 
+            font-weight: bold; 
+        }
+        .info { 
+            color: #555; 
+            font-size: 17px; 
+            margin-bottom: 20px; 
+        }
+        .form-group {
+            margin: 20px 0;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: bold;
+            color: #333;
+        }
+        .form-group input {
+            padding: 12px;
+            font-size: 16px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            width: 200px;
+            text-align: center;
+            letter-spacing: 2px;
+        }
+        .btn { 
+            padding: 12px 25px; 
+            background: #007bff; 
+            color: white; 
+            border: none; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            font-size: 16px; 
+            transition: background-color 0.3s ease; 
+            margin: 10px;
+        }
+        .btn:hover { 
+            background: #0056b3; 
+        }
+        .btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        .status {
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .status.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status.info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .qr-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border: 1px solid #e9ecef;
+        }
+        .qr-section img {
+            max-width: 200px;
+            margin: 10px 0;
+        }
+        .secret-display {
+            font-family: 'Courier New', Courier, monospace;
+            background: #e9ecef;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="warning">🔐 Two-Factor Authentication Required</div>
+        <div class="info">You have 2FA enabled. Please enter the 6-digit code from your authenticator app to complete the login.</div>
+        
+        <div id="status"></div>
+        
+        <div class="form-group">
+            <label for="totpCode">Enter 6-digit code:</label>
+            <input type="text" id="totpCode" maxlength="6" placeholder="123456" pattern="[0-9]{6}">
+        </div>
+        
+        <button class="btn" onclick="verify2FA()">✅ Verify & Complete Login</button>
+        <button class="btn" onclick="resendCode()" style="background: #6c757d;">🔄 Resend Code</button>
+        
+        <div class="qr-section" id="qrSection" style="display: none;">
+            <h3>📱 Setup 2FA (if not already done)</h3>
+            <div id="qrCode"></div>
+            <div class="secret-display" id="secretDisplay"></div>
+            <button class="btn" onclick="setup2FA()">⚙️ Setup 2FA</button>
+        </div>
+        
+        <div class="info">
+            <small>Don't have an authenticator app? Download Google Authenticator or Authy from your app store.</small>
+        </div>
+    </div>
+    
+    <script>
+        let userEmail = '';
+        
+        // Get email from URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        userEmail = urlParams.get('email') || '';
+        
+        function showStatus(message, type) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+        
+        async function verify2FA() {
+            const code = document.getElementById('totpCode').value;
+            
+            if (!code || code.length !== 6) {
+                showStatus('Please enter a valid 6-digit code.', 'error');
+                return;
+            }
+            
+            if (!userEmail) {
+                showStatus('Email not found. Please try logging in again.', 'error');
+                return;
+            }
+            
+            showStatus('Verifying 2FA code...', 'info');
+            
+            try {
+                const response = await fetch('/api/auth/verify-2fa', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `email=${encodeURIComponent(userEmail)}&code=${encodeURIComponent(code)}`
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.accessToken) {
+                    showStatus('✅ 2FA verification successful! Redirecting...', 'success');
+                    
+                    // JWT tokens are now set as HTTP-only cookies by the server
+                    // Redirect to success page
+                    setTimeout(() => {
+                        window.location.href = `/static/oauth2-success.html?isAdmin=true`;
+                    }, 2000);
+                } else {
+                    showStatus('❌ Invalid 2FA code. Please try again.', 'error');
+                }
+                
+            } catch (error) {
+                showStatus('❌ Error verifying 2FA: ' + error.message, 'error');
+            }
+        }
+        
+        async function setup2FA() {
+            showStatus('Setting up 2FA...', 'info');
+            
+            try {
+                const response = await fetch('/api/auth/2fa/setup', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `email=${encodeURIComponent(userEmail)}`
+                });
+                
+                const data = await response.json();
+                
+                if (data.qrCode) {
+                    document.getElementById('qrCode').innerHTML = `<img src="${data.qrCode}" alt="2FA QR Code">`;
+                    document.getElementById('secretDisplay').textContent = data.secret;
+                    document.getElementById('qrSection').style.display = 'block';
+                    showStatus('✅ 2FA setup complete. Scan the QR code with your authenticator app.', 'success');
+                } else {
+                    showStatus('❌ Failed to setup 2FA: ' + (data.error || 'Unknown error'), 'error');
+                }
+                
+            } catch (error) {
+                showStatus('❌ Error setting up 2FA: ' + error.message, 'error');
+            }
+        }
+        
+        function resendCode() {
+            showStatus('ℹ️ 2FA codes are time-based. Please check your authenticator app for the current code.', 'info');
+        }
+        
+        // Auto-focus on code input
+        document.getElementById('totpCode').focus();
+        
+        // Auto-submit when 6 digits are entered
+        document.getElementById('totpCode').addEventListener('input', function(e) {
+            if (e.target.value.length === 6) {
+                verify2FA();
+            }
+        });
+    </script>
+</body>
+</html>

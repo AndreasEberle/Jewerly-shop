@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authentication Debug - Jewelry Shop</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f0f2f5;
+            color: #333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #ffffff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        .header h1 {
+            color: #1976d2;
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+        .debug-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 5px solid #1976d2;
+        }
+        .debug-section h3 {
+            margin-top: 0;
+            color: #1976d2;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status.warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .json-display {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 14px;
+            white-space: pre-wrap;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+        .test-button {
+            background: #1976d2;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+            transition: background-color 0.3s ease;
+        }
+        .test-button:hover {
+            background: #1565c0;
+        }
+        .test-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #1976d2;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .endpoint-test {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+        .endpoint-test h4 {
+            margin-top: 0;
+            color: #1976d2;
+        }
+        .endpoint-test .url {
+            font-family: 'Courier New', Courier, monospace;
+            background: #f5f5f5;
+            padding: 5px;
+            border-radius: 3px;
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 Authentication Debug Center</h1>
+            <p>Comprehensive debugging for OAuth2 and session authentication</p>
+        </div>
+        
+        <div class="debug-section">
+            <h3>🧪 Quick Tests</h3>
+            <button class="test-button" onclick="runAllTests()">Run All Tests</button>
+            <button class="test-button" onclick="testSession()">Test Session</button>
+            <button class="test-button" onclick="testAdminCheck()">Test Admin Check</button>
+            <button class="test-button" onclick="testHealth()">Test Health</button>
+            <button class="test-button" onclick="clearResults()">Clear Results</button>
+        </div>
+        
+        <div id="loading" class="loading" style="display: none;">
+            <div class="spinner"></div>
+            <div>Running tests...</div>
+        </div>
+        
+        <div id="results"></div>
+    </div>
+
+    <script>
+        function showLoading() {
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('results').innerHTML = '';
+        }
+        
+        function hideLoading() {
+            document.getElementById('loading').style.display = 'none';
+        }
+        
+        function addResult(title, content, type = 'info') {
+            const resultsDiv = document.getElementById('results');
+            const section = document.createElement('div');
+            section.className = 'debug-section';
+            
+            let statusClass = '';
+            if (type === 'success') statusClass = 'status success';
+            else if (type === 'error') statusClass = 'status error';
+            else if (type === 'warning') statusClass = 'status warning';
+            
+            section.innerHTML = `
+                <h3>${title}</h3>
+                <div class="${statusClass}">${content}</div>
+            `;
+            
+            resultsDiv.appendChild(section);
+        }
+        
+        function addJsonResult(title, data, type = 'info') {
+            const resultsDiv = document.getElementById('results');
+            const section = document.createElement('div');
+            section.className = 'debug-section';
+            
+            let statusClass = '';
+            if (type === 'success') statusClass = 'status success';
+            else if (type === 'error') statusClass = 'status error';
+            else if (type === 'warning') statusClass = 'status warning';
+            
+            section.innerHTML = `
+                <h3>${title}</h3>
+                <div class="${statusClass}">Response received</div>
+                <div class="json-display">${JSON.stringify(data, null, 2)}</div>
+            `;
+            
+            resultsDiv.appendChild(section);
+        }
+        
+        function addEndpointTest(title, url, description) {
+            const resultsDiv = document.getElementById('results');
+            const section = document.createElement('div');
+            section.className = 'endpoint-test';
+            
+            section.innerHTML = `
+                <h4>${title}</h4>
+                <div class="url">${url}</div>
+                <p>${description}</p>
+                <button class="test-button" onclick="testEndpoint('${url}', '${title}')">Test This Endpoint</button>
+            `;
+            
+            resultsDiv.appendChild(section);
+        }
+        
+        async function testEndpoint(url, title) {
+            try {
+                const response = await fetch(url, {
+                    method: 'GET',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                addJsonResult(`${title} - Status: ${response.status}`, data, response.ok ? 'success' : 'error');
+            } catch (error) {
+                addResult(`${title} - Error`, `Failed to fetch: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testSession() {
+            addResult('Testing Session', 'Checking OAuth2 session status...', 'info');
+            
+            try {
+                const response = await fetch('/api/auth/session/test', {
+                    method: 'GET',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                addJsonResult('Session Test Result', data, response.ok ? 'success' : 'error');
+                
+                // Analyze the result
+                if (data.hasAuth && data.isAuthenticated && !data.isAnonymous) {
+                    addResult('Session Analysis', '✅ OAuth2 session is working! User is authenticated.', 'success');
+                } else if (data.hasAuth && data.isAnonymous) {
+                    addResult('Session Analysis', '⚠️ User is anonymous. OAuth2 session not maintained.', 'warning');
+                } else {
+                    addResult('Session Analysis', '❌ No authentication context found.', 'error');
+                }
+                
+            } catch (error) {
+                addResult('Session Test Error', `Failed to test session: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testAdminCheck() {
+            addResult('Testing Admin Check', 'Checking admin role...', 'info');
+            
+            try {
+                const response = await fetch('/api/auth/check-admin', {
+                    method: 'GET',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                addJsonResult('Admin Check Result', data, response.ok ? 'success' : 'error');
+                
+                // Analyze the result
+                if (data.authenticated && data.admin) {
+                    addResult('Admin Analysis', '✅ User is authenticated and has admin role!', 'success');
+                } else if (data.authenticated && !data.admin) {
+                    addResult('Admin Analysis', '⚠️ User is authenticated but does not have admin role (Customer).', 'warning');
+                } else {
+                    addResult('Admin Analysis', '❌ User is not authenticated.', 'error');
+                }
+                
+            } catch (error) {
+                addResult('Admin Check Error', `Failed to check admin status: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testHealth() {
+            addResult('Testing Health Check', 'Checking health endpoint...', 'info');
+            
+            try {
+                const response = await fetch('/api/auth/session/health', {
+                    method: 'GET',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                addJsonResult('Health Check Result', data, response.ok ? 'success' : 'error');
+                
+            } catch (error) {
+                addResult('Health Check Error', `Failed to check health: ${error.message}`, 'error');
+            }
+        }
+        
+        async function runAllTests() {
+            showLoading();
+            clearResults();
+            
+            addResult('Starting Tests', 'Running comprehensive authentication tests...', 'info');
+            
+            // Add endpoint tests
+            addEndpointTest('Session Test', '/api/auth/session/test', 'Tests OAuth2 session status');
+            addEndpointTest('Admin Check', '/api/auth/check-admin', 'Checks if user has admin role');
+            addEndpointTest('Health Check', '/api/auth/session/health', 'Tests session-based health endpoint');
+            addEndpointTest('2FA Status', '/api/auth/session/2fa/status', 'Tests 2FA status endpoint');
+            addEndpointTest('Direct Health', '/api/health', 'Tests direct health endpoint (should redirect)');
+            
+            // Run the actual tests
+            await testSession();
+            await testAdminCheck();
+            await testHealth();
+            
+            hideLoading();
+            addResult('Tests Complete', 'All tests completed. Check results above for details.', 'success');
+        }
+        
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+        }
+        
+        // Auto-run tests when page loads
+        window.onload = function() {
+            addResult('Debug Center Ready', 'Click "Run All Tests" to start debugging, or test individual endpoints below.', 'info');
+        };
+    </script>
+</body>
+</html>

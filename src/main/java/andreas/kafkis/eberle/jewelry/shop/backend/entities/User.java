@@ -61,7 +61,14 @@ public class User {
     @Column(name = "is_active", nullable = false)
     private boolean active = true;
 
-    @ManyToMany(fetch = FetchType.LAZY)
+    // 2FA fields
+    @Column(name = "totp_secret")
+    private String totpSecret;
+
+    @Column(name = "totp_enabled", nullable = false)
+    private boolean totpEnabled = false;
+
+    @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(name = "user_roles",
             joinColumns = @JoinColumn(name = "user_id"),
             inverseJoinColumns = @JoinColumn(name = "role_id"))

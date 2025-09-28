@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Admin - Jewelry Shop</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f0f2f5;
+            color: #333;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: #ffffff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        .header h1 {
+            color: #1976d2;
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status.warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .btn {
+            padding: 10px 25px;
+            background: #1976d2;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .btn:hover {
+            background: #1565c0;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .admin-links {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 5px solid #28a745;
+        }
+        .admin-links h3 {
+            margin-top: 0;
+            color: #28a745;
+        }
+        .admin-links a {
+            display: inline-block;
+            margin: 10px;
+            padding: 12px 25px;
+            background: #28a745;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 16px;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .admin-links a:hover {
+            background: #218838;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+        .json-display {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 14px;
+            white-space: pre-wrap;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #1976d2;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔐 Simple Admin Panel</h1>
+            <p>OAuth2-based admin access (no JWT complexity)</p>
+        </div>
+        
+        <div id="status"></div>
+        
+        <div class="admin-links">
+            <h3>🎯 Admin Actions</h3>
+            <button class="btn" onclick="testAuth()">🧪 Test Authentication</button>
+            <button class="btn" onclick="testAdmin()">👑 Test Admin Status</button>
+            <button class="btn" onclick="testHealth()">💚 Test Health</button>
+            <button class="btn" onclick="openSwagger()">📚 Open Swagger UI</button>
+            <button class="btn" onclick="openDebug()">🔍 Open Debug Center</button>
+        </div>
+        
+        <div id="results"></div>
+    </div>
+
+    <script>
+        function showStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = message;
+            statusDiv.className = 'status ' + type;
+        }
+        
+        function addResult(title, content, type = 'info') {
+            const resultsDiv = document.getElementById('results');
+            const section = document.createElement('div');
+            section.className = 'admin-links';
+            
+            let statusClass = '';
+            if (type === 'success') statusClass = 'status success';
+            else if (type === 'error') statusClass = 'status error';
+            else if (type === 'warning') statusClass = 'status warning';
+            
+            section.innerHTML = `
+                <h3>${title}</h3>
+                <div class="${statusClass}">${content}</div>
+            `;
+            
+            resultsDiv.appendChild(section);
+        }
+        
+        function addJsonResult(title, data, type = 'info') {
+            const resultsDiv = document.getElementById('results');
+            const section = document.createElement('div');
+            section.className = 'admin-links';
+            
+            let statusClass = '';
+            if (type === 'success') statusClass = 'status success';
+            else if (type === 'error') statusClass = 'status error';
+            else if (type === 'warning') statusClass = 'status warning';
+            
+            section.innerHTML = `
+                <h3>${title}</h3>
+                <div class="${statusClass}">Response received</div>
+                <div class="json-display">${JSON.stringify(data, null, 2)}</div>
+            `;
+            
+            resultsDiv.appendChild(section);
+        }
+        
+        async function testAuth() {
+            showStatus('Testing authentication...', 'info');
+            
+            try {
+                const response = await fetch('/api/auth/check-admin', {
+                    method: 'GET',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                addJsonResult('Authentication Test', data, response.ok ? 'success' : 'error');
+                
+                if (data.authenticated && data.admin) {
+                    showStatus('✅ You are authenticated as ADMIN!', 'success');
+                } else if (data.authenticated && !data.admin) {
+                    showStatus('⚠️ You are authenticated as CUSTOMER (not admin)', 'warning');
+                } else {
+                    showStatus('❌ You are not authenticated. Please login with Google first.', 'error');
+                }
+                
+            } catch (error) {
+                addResult('Authentication Test Error', `Failed to test authentication: ${error.message}`, 'error');
+                showStatus('❌ Authentication test failed: ' + error.message, 'error');
+            }
+        }
+        
+        async function testAdmin() {
+            showStatus('Testing admin status...', 'info');
+            
+            try {
+                const response = await fetch('/api/auth/check-admin', {
+                    method: 'GET',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                addJsonResult('Admin Status Test', data, response.ok ? 'success' : 'error');
+                
+            } catch (error) {
+                addResult('Admin Status Test Error', `Failed to test admin status: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testHealth() {
+            showStatus('Testing health endpoint...', 'info');
+            
+            try {
+                const response = await fetch('/api/health', {
+                    method: 'GET',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                addJsonResult('Health Test', data, response.ok ? 'success' : 'error');
+                
+            } catch (error) {
+                addResult('Health Test Error', `Failed to test health: ${error.message}`, 'error');
+            }
+        }
+        
+        function openSwagger() {
+            window.open('/swagger-ui.html', '_blank');
+        }
+        
+        function openDebug() {
+            window.open('/static/debug-auth.html', '_blank');
+        }
+        
+        // Auto-test when page loads
+        window.onload = function() {
+            showStatus('🔍 Simple Admin Panel loaded. Click "Test Authentication" to check your status.', 'info');
+        };
+    </script>
+</body>
+</html>

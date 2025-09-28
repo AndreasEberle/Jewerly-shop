@@ -1,6 +1,7 @@
 package andreas.kafkis.eberle.jewelry.shop.backend.repository;
 
 import java.util.Optional;
+import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -11,7 +12,7 @@ import org.springframework.stereotype.Repository;
 import andreas.kafkis.eberle.jewelry.shop.backend.entities.SystemConfig;
 
 @Repository
-public interface SystemConfigRepository extends JpaRepository<SystemConfig, Long> {
+public interface SystemConfigRepository extends JpaRepository<SystemConfig, UUID> {
 
     Optional<SystemConfig> findByConfigKey(String configKey);
 

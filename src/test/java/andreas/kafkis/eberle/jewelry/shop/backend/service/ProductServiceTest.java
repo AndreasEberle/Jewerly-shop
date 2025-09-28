@@ -50,12 +50,12 @@ class ProductServiceTest {
     @BeforeEach
     void setUp() {
         testCategory = new Category();
-        testCategory.setId(1);
+        
         testCategory.setName("Rings");
         testCategory.setSlug("rings");
 
         testTag = new Tag();
-        testTag.setId(1);
+        
         testTag.setName("Gold");
         testTag.setSlug("gold");
 

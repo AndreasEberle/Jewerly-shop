@@ -22,12 +22,14 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import andreas.kafkis.eberle.jewelry.shop.backend.entities.Category;
 import andreas.kafkis.eberle.jewelry.shop.backend.entities.Product;
 import andreas.kafkis.eberle.jewelry.shop.backend.entities.Tag;
+import andreas.kafkis.eberle.jewelry.shop.backend.service.JwtService;
 import andreas.kafkis.eberle.jewelry.shop.backend.service.ProductService;
 import andreas.kafkis.eberle.jewelry.shop.backend.service.SystemConfigService;
 
@@ -45,6 +47,9 @@ class ProductControllerTest {
     @MockBean
     private SystemConfigService systemConfigService;
 
+    @MockBean
+    private JwtService jwtService;
+
     private Product testProduct;
     private Category testCategory;
     private Tag testTag;
@@ -52,12 +57,12 @@ class ProductControllerTest {
     @BeforeEach
     void setUp() {
         testCategory = new Category();
-        testCategory.setId(1);
+        
         testCategory.setName("Rings");
         testCategory.setSlug("rings");
 
         testTag = new Tag();
-        testTag.setId(1);
+        
         testTag.setName("Gold");
         testTag.setSlug("gold");
 
@@ -118,6 +123,7 @@ class ProductControllerTest {
     }
 
     @Test
+    @WithMockUser
     void getProductsByCategory_ShouldReturnProductsInCategory() throws Exception {
         // Given
         when(productService.findByCategory("Rings")).thenReturn(List.of(testProduct));

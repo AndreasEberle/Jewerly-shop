@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Access Denied</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            text-align: center;
+            padding: 40px;
+            background-color: #f8f9fa;
+            color: #333;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: #ffffff;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        .error-icon {
+            font-size: 72px;
+            color: #dc3545;
+            margin-bottom: 20px;
+        }
+        .error-title {
+            color: #dc3545;
+            font-size: 32px;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+        .error-message {
+            color: #6c757d;
+            font-size: 18px;
+            margin-bottom: 30px;
+        }
+        .btn {
+            display: inline-block;
+            padding: 12px 25px;
+            background: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            font-size: 16px;
+            transition: background-color 0.3s ease;
+            margin: 10px;
+        }
+        .btn:hover {
+            background-color: #0056b3;
+        }
+        .btn-secondary {
+            background: #6c757d;
+        }
+        .btn-secondary:hover {
+            background-color: #545b62;
+        }
+        .info-box {
+            background: #e9ecef;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            text-align: left;
+        }
+        .info-box h4 {
+            margin-top: 0;
+            color: #495057;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="error-icon">🚫</div>
+        <div class="error-title">Access Denied</div>
+        <div class="error-message">
+            You don't have permission to access this resource.
+        </div>
+        
+        <div class="info-box">
+            <h4>Why am I seeing this?</h4>
+            <p>This page requires administrator privileges. You are currently logged in as a customer account.</p>
+            <p>If you believe this is an error, please contact your system administrator.</p>
+        </div>
+        
+        <div>
+            <a href="/" class="btn">🏠 Go to Home</a>
+            <a href="/api/auth/check-admin" class="btn btn-secondary">🔍 Check My Role</a>
+            <a href="/oauth2/authorization/google" class="btn">🔄 Switch Account</a>
+        </div>
+        
+        <div style="margin-top: 30px; font-size: 14px; color: #6c757d;">
+            <p>Need help? Contact support or try logging in with an administrator account.</p>
+        </div>
+    </div>
+</body>
+</html>

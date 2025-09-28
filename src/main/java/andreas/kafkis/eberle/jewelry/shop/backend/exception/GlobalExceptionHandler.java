@@ -15,7 +15,6 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import andreas.kafkis.eberle.jewelry.shop.backend.dto.ErrorResponse;
-import andreas.kafkis.eberle.jewelry.shop.backend.dto.ValidationError;
 import jakarta.servlet.http.HttpServletRequest;
 
 @RestControllerAdvice
@@ -31,14 +30,14 @@ public class GlobalExceptionHandler {
             MethodArgumentNotValidException ex,
             HttpServletRequest request
     ) {
-        List<ValidationError> validationErrors = new ArrayList<>();
+        List<ErrorResponse.ValidationError> validationErrors = new ArrayList<>();
         
         ex.getBindingResult().getAllErrors().forEach((error) -> {
             String fieldName = ((FieldError) error).getField();
             String errorMessage = error.getDefaultMessage();
             Object rejectedValue = ((FieldError) error).getRejectedValue();
             
-            validationErrors.add(ValidationError.builder()
+            validationErrors.add(ErrorResponse.ValidationError.builder()
                     .field(fieldName)
                     .message(errorMessage)
                     .rejectedValue(rejectedValue)

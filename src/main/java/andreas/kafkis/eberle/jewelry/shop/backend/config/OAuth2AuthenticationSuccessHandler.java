@@ -19,7 +19,9 @@ import andreas.kafkis.eberle.jewelry.shop.backend.service.OAuth2Service;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Component
 public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
 
@@ -37,22 +39,53 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
                                       Authentication authentication) throws IOException, ServletException {
         
         if (response.isCommitted()) {
-            logger.debug("Response has already been committed. Unable to redirect.");
+            log.debug("Response has already been committed. Unable to redirect.");
             return;
         }
 
         try {
             OAuth2User oauth2User = (OAuth2User) authentication.getPrincipal();
+            String email = oauth2User.getAttribute("email");
+            
+            log.info("OAuth2 login attempt for email: {}", email);
             
             // Process OAuth2 login and get JWT tokens
             AuthenticationResponse authResponse = oauth2Service.processOAuth2Login(oauth2User);
             
-            // Redirect to our custom success page with tokens
+            // Check if 2FA is required
+            if (authResponse.getRequires2FA() != null && authResponse.getRequires2FA()) {
+                log.info("🔐 2FA required for admin user: {}", email);
+                // Redirect to 2FA verification page
+                String twoFactorUrl = "http://localhost:8080/static/oauth2-2fa-required.html";
+                String targetUrl = UriComponentsBuilder.fromUriString(twoFactorUrl)
+                        .queryParam("email", URLEncoder.encode(email, StandardCharsets.UTF_8))
+                        .build().toUriString();
+                getRedirectStrategy().sendRedirect(request, response, targetUrl);
+                return;
+            }
+            
+            // Check if user has admin role and log accordingly
+            boolean isAdmin = authResponse.getUser().getRoles().contains("ADMIN");
+            if (isAdmin) {
+                log.info("✅ OAuth2 ADMIN login successful for email: {} - User has ADMIN role", email);
+                log.info("Admin user can now access: Swagger UI, 2FA setup, Health checks, Admin endpoints");
+            } else {
+                log.info("✅ OAuth2 CUSTOMER login successful for email: {} - User has CUSTOMER role", email);
+            }
+            
+            // Set HTTP-only cookies for JWT tokens
+            if (authResponse.getAccessToken() != null) {
+                setHttpOnlyCookie(response, "jwt_token", authResponse.getAccessToken(), 86400); // 24 hours
+            }
+            if (authResponse.getRefreshToken() != null) {
+                setHttpOnlyCookie(response, "jwt_refresh_token", authResponse.getRefreshToken(), 604800); // 7 days
+            }
+            
+            // Redirect to our custom success page (without tokens in URL for security)
             String successUrl = "http://localhost:8080/api/auth/oauth2/success";
             String targetUrl = UriComponentsBuilder.fromUriString(successUrl)
-                    .queryParam("token", authResponse.getAccessToken())
-                    .queryParam("refreshToken", authResponse.getRefreshToken())
                     .queryParam("user", URLEncoder.encode(objectMapper.writeValueAsString(authResponse.getUser()), StandardCharsets.UTF_8))
+                    .queryParam("isAdmin", isAdmin)
                     .build().toUriString();
 
             getRedirectStrategy().sendRedirect(request, response, targetUrl);
@@ -63,10 +96,10 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
             // response.getWriter().write(objectMapper.writeValueAsString(authResponse));
             
         } catch (Exception e) {
-            logger.error("Error processing OAuth2 authentication: " + e.getMessage(), e);
-            logger.error("Exception type: " + e.getClass().getSimpleName());
+            log.error("Error processing OAuth2 authentication: " + e.getMessage(), e);
+            log.error("Exception type: " + e.getClass().getSimpleName());
             if (e.getCause() != null) {
-                logger.error("Caused by: " + e.getCause().getMessage());
+                log.error("Caused by: " + e.getCause().getMessage());
             }
             
             // Redirect to error page
@@ -77,5 +110,18 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
                     
             getRedirectStrategy().sendRedirect(request, response, errorUrl);
         }
+    }
+    
+    /**
+     * Set HTTP-only cookie for JWT token storage
+     */
+    private void setHttpOnlyCookie(HttpServletResponse response, String name, String value, int maxAgeSeconds) {
+        jakarta.servlet.http.Cookie cookie = new jakarta.servlet.http.Cookie(name, value);
+        cookie.setHttpOnly(true);
+        cookie.setSecure(false); // Set to true in production with HTTPS
+        cookie.setPath("/");
+        cookie.setMaxAge(maxAgeSeconds);
+        response.addCookie(cookie);
+        log.debug("Set HTTP-only cookie: {} with maxAge: {} seconds", name, maxAgeSeconds);
     }
 }

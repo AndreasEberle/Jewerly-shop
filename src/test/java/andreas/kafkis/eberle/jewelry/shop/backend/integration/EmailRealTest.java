@@ -18,7 +18,7 @@ import andreas.kafkis.eberle.jewelry.shop.backend.service.EmailService;
  * Real email test that shows how properties are loaded and can send real emails
  */
 @SpringBootTest
-@ActiveProfiles("test-real")
+@ActiveProfiles("testreal")
 class EmailRealTest {
 
     @Autowired

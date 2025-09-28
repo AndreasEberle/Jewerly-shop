@@ -52,7 +52,7 @@ class UserServiceTest {
     @BeforeEach
     void setUp() {
         customerRole = new Role();
-        customerRole.setId(1);
+        
         customerRole.setName("CUSTOMER");
 
         testUser = new User();

@@ -12,7 +12,7 @@ import org.springframework.test.context.ActiveProfiles;
  * This test will only work if you have application-test-real.properties configured
  */
 @SpringBootTest
-@ActiveProfiles("test-real") // This will load application-test-real.properties
+@ActiveProfiles("testreal") // This will load application-testreal.properties
 class PropertyLoadingRealTest {
 
     @Value("${email.from:}")

@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Swagger UI - Jewelry Shop API</title>
+    <link rel="stylesheet" type="text/css" href="/webjars/swagger-ui/4.15.5/swagger-ui.css" />
+    <style>
+        html {
+            box-sizing: border-box;
+            overflow: -moz-scrollbars-vertical;
+            overflow-y: scroll;
+        }
+        *, *:before, *:after {
+            box-sizing: inherit;
+        }
+        body {
+            margin:0;
+            background: #fafafa;
+        }
+        .swagger-ui .topbar {
+            background-color: #1976d2;
+        }
+        .swagger-ui .topbar .download-url-wrapper {
+            display: none;
+        }
+        .token-display {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: #fff;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+            max-width: 300px;
+        }
+        .token-display h4 {
+            margin: 0 0 10px 0;
+            color: #1976d2;
+        }
+        .token-display input {
+            width: 100%;
+            padding: 5px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+        }
+        .token-display button {
+            background: #1976d2;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            margin: 2px;
+        }
+        .token-display button:hover {
+            background: #1565c0;
+        }
+    </style>
+</head>
+<body>
+    <div class="token-display">
+        <h4>🔑 JWT Token</h4>
+        <input type="text" id="jwtToken" placeholder="Enter JWT token here..." />
+        <button onclick="setToken()">Set Token</button>
+        <button onclick="clearToken()">Clear</button>
+        <div id="status" style="font-size: 12px; color: #666; margin-top: 5px;"></div>
+    </div>
+
+    <div id="swagger-ui"></div>
+
+    <script src="/webjars/swagger-ui/4.15.5/swagger-ui-bundle.js"></script>
+    <script src="/webjars/swagger-ui/4.15.5/swagger-ui-standalone-preset.js"></script>
+    <script>
+        function showStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.style.color = type === 'error' ? '#d32f2f' : type === 'success' ? '#2e7d32' : '#666';
+        }
+
+        function setToken() {
+            const token = document.getElementById('jwtToken').value.trim();
+            if (!token) {
+                showStatus('Please enter a token first.', 'error');
+                return;
+            }
+
+            // Remove "Bearer " prefix if present
+            const cleanToken = token.startsWith('Bearer ') ? token.substring(7) : token;
+            
+            // Store token
+            localStorage.setItem('swagger-jwt-token', cleanToken);
+            
+            // Update Swagger UI authorization
+            if (window.ui) {
+                window.ui.authActions.authorize({
+                    Bearer: {
+                        name: 'Bearer',
+                        schema: {
+                            type: 'http',
+                            scheme: 'bearer',
+                            bearerFormat: 'JWT'
+                        },
+                        value: cleanToken
+                    }
+                });
+                showStatus('✅ Token set successfully!', 'success');
+            } else {
+                showStatus('⚠️ Token saved, will be applied when Swagger UI loads', 'info');
+            }
+        }
+
+        function clearToken() {
+            localStorage.removeItem('swagger-jwt-token');
+            document.getElementById('jwtToken').value = '';
+            
+            if (window.ui) {
+                window.ui.authActions.logout(['Bearer']);
+            }
+            
+            showStatus('🗑️ Token cleared', 'info');
+        }
+
+        // Initialize Swagger UI
+        window.onload = function() {
+            // Load token from localStorage
+            const savedToken = localStorage.getItem('swagger-jwt-token');
+            if (savedToken) {
+                document.getElementById('jwtToken').value = savedToken;
+            }
+
+            // Load token from URL parameter
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlToken = urlParams.get('token');
+            if (urlToken) {
+                const cleanToken = urlToken.startsWith('Bearer ') ? urlToken.substring(7) : urlToken;
+                document.getElementById('jwtToken').value = cleanToken;
+                localStorage.setItem('swagger-jwt-token', cleanToken);
+            }
+
+            const ui = SwaggerUIBundle({
+                url: '/v3/api-docs',
+                dom_id: '#swagger-ui',
+                deepLinking: true,
+                presets: [
+                    SwaggerUIBundle.presets.apis,
+                    SwaggerUIStandalonePreset
+                ],
+                plugins: [
+                    SwaggerUIBundle.plugins.DownloadUrl
+                ],
+                layout: "StandaloneLayout",
+                tryItOutEnabled: true,
+                requestInterceptor: (request) => {
+                    // Automatically add JWT token to requests
+                    const token = localStorage.getItem('swagger-jwt-token');
+                    if (token && request.url.startsWith('/api/')) {
+                        request.headers['Authorization'] = 'Bearer ' + token;
+                    }
+                    return request;
+                },
+                onComplete: () => {
+                    // Auto-authorize if token is available
+                    const token = localStorage.getItem('swagger-jwt-token');
+                    if (token) {
+                        ui.authActions.authorize({
+                            Bearer: {
+                                name: 'Bearer',
+                                schema: {
+                                    type: 'http',
+                                    scheme: 'bearer',
+                                    bearerFormat: 'JWT'
+                                },
+                                value: token
+                            }
+                        });
+                        showStatus('✅ Token automatically applied!', 'success');
+                    }
+                }
+            });
+
+            window.ui = ui;
+        };
+    </script>
+</body>
+</html>

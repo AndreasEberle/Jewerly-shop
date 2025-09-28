@@ -15,5 +15,6 @@ public class AuthenticationResponse {
     private String refreshToken;
     private String tokenType;
     private Long expiresIn;
+    private Boolean requires2FA;
     private UserInfo user;
 }

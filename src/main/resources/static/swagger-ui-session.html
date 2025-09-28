@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Swagger UI - Jewelry Shop API (Session-based)</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f0f2f5;
+            color: #333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #ffffff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        .header h1 {
+            color: #1976d2;
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+        .header p {
+            color: #666;
+            font-size: 18px;
+        }
+        .status {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 5px solid #1976d2;
+        }
+        .status.success {
+            background: #e8f5e8;
+            border-left-color: #4caf50;
+        }
+        .status.error {
+            background: #ffebee;
+            border-left-color: #f44336;
+        }
+        .swagger-frame {
+            width: 100%;
+            height: 80vh;
+            border: none;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #1976d2;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔐 Swagger UI - Admin Access</h1>
+            <p>API Documentation for Jewelry Shop Backend (Session-based Authentication)</p>
+        </div>
+        
+        <div id="status" class="status">
+            <div class="spinner"></div>
+            <div class="loading">Checking authentication status...</div>
+        </div>
+        
+        <div id="swagger-container" style="display: none;">
+            <iframe id="swagger-frame" class="swagger-frame" src="/swagger-ui/index.html"></iframe>
+        </div>
+    </div>
+
+    <script>
+        function showStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = message;
+            statusDiv.className = 'status ' + type;
+        }
+
+        function checkAuthentication() {
+            // Check if user is authenticated and has admin role
+            fetch('/api/auth/check-admin', {
+                method: 'GET',
+                credentials: 'include', // Include session cookies
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => {
+                if (response.ok) {
+                    return response.json();
+                } else {
+                    throw new Error('Authentication check failed with status: ' + response.status);
+                }
+            })
+            .then(data => {
+                console.log('Authentication response:', data);
+                
+                if (data.authenticated && data.admin) {
+                    showStatus('✅ Admin authentication successful! Loading Swagger UI...', 'success');
+                    // Load Swagger UI
+                    document.getElementById('swagger-container').style.display = 'block';
+                    document.getElementById('status').style.display = 'none';
+                } else if (data.authenticated && !data.admin) {
+                    showStatus('❌ Access Denied: Admin role required. You are logged in as: ' + (data.user || 'Unknown') + ' (Customer role). Please log in with an admin account.', 'error');
+                } else {
+                    showStatus('❌ Not authenticated. Please <a href="/oauth2/authorization/google" style="color: #1976d2;">log in with Google</a> first.', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Authentication error:', error);
+                showStatus('❌ Authentication failed: ' + error.message + '. Please <a href="/oauth2/authorization/google" style="color: #1976d2;">log in with Google</a> first.', 'error');
+            });
+        }
+
+        // Check authentication when page loads
+        window.onload = function() {
+            // First check if user is admin, if not redirect away
+            checkAdminStatus();
+        };
+
+        function checkAdminStatus() {
+            fetch('/api/auth/check-admin', {
+                method: 'GET',
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.authenticated && data.admin) {
+                    // User is admin, proceed with Swagger UI check
+                    checkAuthentication();
+                } else if (data.authenticated && !data.admin) {
+                    // User is customer, show access denied
+                    showStatus('❌ Access Denied: This page is for administrators only. You are logged in as: ' + (data.user || 'Unknown') + ' (Customer role).', 'error');
+                } else {
+                    // User not authenticated
+                    showStatus('❌ Not authenticated. Please <a href="/oauth2/authorization/google" style="color: #1976d2;">log in with Google</a> first.', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Admin check error:', error);
+                showStatus('❌ Authentication check failed: ' + error.message, 'error');
+            });
+        }
+    </script>
+</body>
+</html>

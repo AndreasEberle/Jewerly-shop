@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JWT Admin Dashboard - Jewelry Shop</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f0f2f5;
+            color: #333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #ffffff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        .header h1 {
+            color: #1976d2;
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+        .token-section {
+            background: #e3f2fd;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            border-left: 5px solid #1976d2;
+        }
+        .token-section h3 {
+            margin-top: 0;
+            color: #1976d2;
+        }
+        .token-input {
+            width: calc(100% - 22px);
+            padding: 12px;
+            margin: 15px 0;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 14px;
+            border: 1px solid #ced4da;
+            border-radius: 5px;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .btn {
+            padding: 10px 25px;
+            background: #1976d2;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .btn:hover {
+            background: #1565c0;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .btn-success {
+            background: #28a745;
+        }
+        .btn-success:hover {
+            background: #218838;
+        }
+        .admin-links {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 5px solid #28a745;
+        }
+        .admin-links h3 {
+            margin-top: 0;
+            color: #28a745;
+        }
+        .admin-links a {
+            display: inline-block;
+            margin: 10px;
+            padding: 12px 25px;
+            background: #28a745;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 16px;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .admin-links a:hover {
+            background: #218838;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status.warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .json-display {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 14px;
+            white-space: pre-wrap;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #1976d2;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .token-display {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            border: 1px solid #e9ecef;
+            word-break: break-all;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔐 JWT Admin Dashboard</h1>
+            <p>OAuth2 + JWT Best Practice Implementation</p>
+        </div>
+        
+        <div class="token-section">
+            <h3>🔑 JWT Token Management</h3>
+            <p id="tokenStatus">Loading token from cookies...</p>
+            <input type="text" id="jwtToken" class="token-input" placeholder="JWT token will be loaded automatically from cookies..." readonly>
+            <br>
+            <button class="btn" onclick="loadTokenFromCookies()">🔄 Refresh Token</button>
+            <button class="btn btn-success" onclick="testToken()">🧪 Test Token</button>
+            <button class="btn" onclick="clearToken()">🗑️ Clear Token</button>
+            <button class="btn" onclick="showToken()">👁️ Show Token</button>
+        </div>
+        
+        <div id="status"></div>
+        
+        <div id="admin-links" class="admin-links" style="display: none;">
+            <h3>🎯 Admin Actions (JWT-Based)</h3>
+            <button class="btn" onclick="test2FA()">🔐 2FA Status</button>
+            <button class="btn" onclick="setup2FA()">⚙️ Setup 2FA</button>
+            <button class="btn" onclick="testHealth()">💚 Health Check</button>
+            <button class="btn" onclick="testSession()">🧪 Session Test</button>
+            <button class="btn" onclick="openSwagger()">📚 Swagger UI</button>
+            <button class="btn" onclick="openDebug()">🔍 Debug Center</button>
+        </div>
+        
+        <div id="results"></div>
+    </div>
+
+    <script>
+        let currentToken = null;
+        
+        function showStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = message;
+            statusDiv.className = 'status ' + type;
+        }
+        
+        function addResult(title, content, type = 'info') {
+            const resultsDiv = document.getElementById('results');
+            const section = document.createElement('div');
+            section.className = 'admin-links';
+            
+            let statusClass = '';
+            if (type === 'success') statusClass = 'status success';
+            else if (type === 'error') statusClass = 'status error';
+            else if (type === 'warning') statusClass = 'status warning';
+            
+            section.innerHTML = `
+                <h3>${title}</h3>
+                <div class="${statusClass}">${content}</div>
+            `;
+            
+            resultsDiv.appendChild(section);
+        }
+        
+        function addJsonResult(title, data, type = 'info') {
+            const resultsDiv = document.getElementById('results');
+            const section = document.createElement('div');
+            section.className = 'admin-links';
+            
+            let statusClass = '';
+            if (type === 'success') statusClass = 'status success';
+            else if (type === 'error') statusClass = 'status error';
+            else if (type === 'warning') statusClass = 'status warning';
+            
+            section.innerHTML = `
+                <h3>${title}</h3>
+                <div class="${statusClass}">Response received</div>
+                <div class="json-display">${JSON.stringify(data, null, 2)}</div>
+            `;
+            
+            resultsDiv.appendChild(section);
+        }
+        
+        function loadTokenFromCookies() {
+            const token = getCookie('jwt_token');
+            if (token) {
+                currentToken = token;
+                document.getElementById('jwtToken').value = token;
+                document.getElementById('tokenStatus').textContent = '✅ Token loaded from cookies';
+                document.getElementById('admin-links').style.display = 'block';
+                showStatus('✅ JWT token loaded from cookies! You can now use admin functions.', 'success');
+            } else {
+                document.getElementById('tokenStatus').textContent = '❌ No JWT token found in cookies. Please login with OAuth2 first.';
+                showStatus('❌ No JWT token found in cookies. Please login with OAuth2 first.', 'error');
+            }
+        }
+        
+        function setToken() {
+            const token = document.getElementById('jwtToken').value.trim();
+            if (!token) {
+                showStatus('Please enter a JWT token first.', 'error');
+                return;
+            }
+            
+            // Remove "Bearer " prefix if present
+            currentToken = token.startsWith('Bearer ') ? token.substring(7) : token;
+            localStorage.setItem('jwt-admin-token', currentToken);
+            
+            showStatus('✅ JWT token set! You can now use admin functions.', 'success');
+            document.getElementById('admin-links').style.display = 'block';
+        }
+        
+        function clearToken() {
+            currentToken = null;
+            localStorage.removeItem('jwt-admin-token');
+            document.getElementById('jwtToken').value = '';
+            document.getElementById('admin-links').style.display = 'none';
+            document.getElementById('results').innerHTML = '';
+            showStatus('🗑️ Token cleared.', 'warning');
+        }
+        
+        function showToken() {
+            if (currentToken) {
+                const tokenDiv = document.createElement('div');
+                tokenDiv.className = 'token-display';
+                tokenDiv.innerHTML = `<strong>Current JWT Token:</strong><br>${currentToken}`;
+                document.getElementById('results').appendChild(tokenDiv);
+            } else {
+                showStatus('No token set.', 'warning');
+            }
+        }
+        
+        async function testToken() {
+            if (!currentToken) {
+                showStatus('Please set a JWT token first.', 'error');
+                return;
+            }
+            
+            showStatus('Testing JWT token...', 'info');
+            
+            try {
+                const response = await fetch('/api/auth/jwt/2fa/status', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': 'Bearer ' + currentToken,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                addJsonResult('JWT Token Test Result', data, response.ok ? 'success' : 'error');
+                
+                if (data.authenticated && data.admin) {
+                    showStatus('✅ JWT token is valid! You have admin access.', 'success');
+                    document.getElementById('admin-links').style.display = 'block';
+                } else {
+                    showStatus('❌ JWT token test failed: ' + (data.error || 'Unknown error'), 'error');
+                }
+                
+            } catch (error) {
+                addResult('JWT Token Test Error', `Failed to test token: ${error.message}`, 'error');
+                showStatus('❌ JWT token test failed: ' + error.message, 'error');
+            }
+        }
+        
+        async function test2FA() {
+            if (!currentToken) {
+                showStatus('Please set a JWT token first.', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/auth/jwt/2fa/status', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': 'Bearer ' + currentToken,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                addJsonResult('2FA Status (JWT)', data, response.ok ? 'success' : 'error');
+                
+            } catch (error) {
+                addResult('2FA Status Error', `Failed to get 2FA status: ${error.message}`, 'error');
+            }
+        }
+        
+        async function setup2FA() {
+            if (!currentToken) {
+                showStatus('Please set a JWT token first.', 'error');
+                return;
+            }
+            
+            showStatus('Setting up 2FA...', 'info');
+            
+            try {
+                const response = await fetch('/api/auth/jwt/2fa/setup', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer ' + currentToken,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                addJsonResult('2FA Setup (JWT)', data, response.ok ? 'success' : 'error');
+                
+                if (data.qrCodeUrl) {
+                    // Show QR code
+                    const qrDiv = document.createElement('div');
+                    qrDiv.className = 'admin-links';
+                    qrDiv.innerHTML = `
+                        <h3>📱 2FA QR Code</h3>
+                        <div class="status success">Scan this QR code with your authenticator app:</div>
+                        <img src="${data.qrCodeUrl}" alt="2FA QR Code" style="max-width: 200px; margin: 10px 0;">
+                        <div class="token-display"><strong>Secret Key:</strong><br>${data.secret}</div>
+                        <div style="margin-top: 15px;">
+                            <input type="text" id="verificationCode" placeholder="Enter 6-digit code from your app" style="padding: 8px; margin-right: 10px; width: 200px;">
+                            <button class="btn" onclick="verify2FA()">✅ Verify & Enable 2FA</button>
+                        </div>
+                    `;
+                    document.getElementById('results').appendChild(qrDiv);
+                }
+                
+            } catch (error) {
+                addResult('2FA Setup Error', `Failed to setup 2FA: ${error.message}`, 'error');
+            }
+        }
+        
+        async function verify2FA() {
+            const code = document.getElementById('verificationCode').value;
+            if (!code) {
+                showStatus('Please enter the 6-digit code.', 'error');
+                return;
+            }
+            
+            if (!currentToken) {
+                showStatus('Please set a JWT token first.', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/auth/jwt/2fa/verify', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer ' + currentToken,
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: `code=${encodeURIComponent(code)}`
+                });
+                
+                const data = await response.json();
+                addJsonResult('2FA Verification (JWT)', data, response.ok ? 'success' : 'error');
+                
+                if (data.totpEnabled) {
+                    showStatus('✅ 2FA successfully enabled!', 'success');
+                } else {
+                    showStatus('❌ 2FA verification failed: ' + (data.error || 'Invalid code'), 'error');
+                }
+                
+            } catch (error) {
+                addResult('2FA Verification Error', `Failed to verify 2FA: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testHealth() {
+            if (!currentToken) {
+                showStatus('Please set a JWT token first.', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/health', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': 'Bearer ' + currentToken,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                addJsonResult('Health Check (JWT)', data, response.ok ? 'success' : 'error');
+                
+            } catch (error) {
+                addResult('Health Check Error', `Failed to get health status: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testSession() {
+            try {
+                const response = await fetch('/api/auth/session/test', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                addJsonResult('Session Test', data, response.ok ? 'success' : 'error');
+                
+            } catch (error) {
+                addResult('Session Test Error', `Failed to test session: ${error.message}`, 'error');
+            }
+        }
+        
+        function openSwagger() {
+            window.open('/swagger-ui.html', '_blank');
+        }
+        
+        function openDebug() {
+            window.open('/static/debug-auth.html', '_blank');
+        }
+        
+        // Auto-load token from cookies or localStorage
+        window.onload = function() {
+            // First try to load from cookies (preferred)
+            const cookieToken = getCookie('jwt_token');
+            if (cookieToken) {
+                currentToken = cookieToken;
+                document.getElementById('jwtToken').value = cookieToken;
+                document.getElementById('tokenStatus').textContent = '✅ Token loaded from cookies';
+                document.getElementById('admin-links').style.display = 'block';
+                showStatus('✅ JWT token loaded from cookies! You can use admin functions.', 'success');
+            } else {
+                // Fallback to localStorage
+                const savedToken = localStorage.getItem('jwt-admin-token');
+                if (savedToken) {
+                    currentToken = savedToken;
+                    document.getElementById('jwtToken').value = savedToken;
+                    document.getElementById('tokenStatus').textContent = '✅ Token loaded from localStorage';
+                    document.getElementById('admin-links').style.display = 'block';
+                    showStatus('✅ JWT token loaded from storage. You can use admin functions.', 'success');
+                } else {
+                    document.getElementById('tokenStatus').textContent = '❌ No JWT token found. Please login with OAuth2 first.';
+                    showStatus('Please login with OAuth2 first to get a JWT token.', 'warning');
+                }
+            }
+        };
+    </script>
+</body>
+</html>

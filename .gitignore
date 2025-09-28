@@ -36,10 +36,19 @@ application-secret.properties
 application-production.properties
 application-local.properties
 application-test-real.properties
+application-testreal.properties
 
 # Database
 *.db
 *.sqlite
+backups/*.sql
+DEPLOYMENT.md
+
+# Sensitive Flyway scripts (containing real data)
+src/main/resources/db/migration/V2__sensitive_data.sql
+
+# Test data scripts (not for production)
+src/main/resources/db/migration/V3__test_data.sql
 
 # Temporary files
 *.tmp

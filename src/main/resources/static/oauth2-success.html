@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAuth2 Success - Jewelry Shop</title>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            margin: 0; 
+            padding: 20px; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container { 
+            max-width: 800px; 
+            background: white; 
+            padding: 40px; 
+            border-radius: 12px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            text-align: center;
+        }
+        .success { 
+            color: #28a745; 
+            font-size: 2.5em; 
+            margin-bottom: 20px; 
+            font-weight: bold;
+        }
+        .admin { 
+            color: #dc3545; 
+            font-size: 1.8em; 
+            margin-bottom: 20px; 
+            font-weight: bold; 
+        }
+        .info { 
+            color: #6c757d; 
+            font-size: 1.2em; 
+            margin-bottom: 15px; 
+        }
+        .admin-links { 
+            background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%); 
+            padding: 25px; 
+            border-radius: 10px; 
+            margin: 25px 0; 
+            border-left: 4px solid #2196f3;
+        }
+        .admin-links h3 {
+            margin-top: 0;
+            color: #1976d2;
+        }
+        .admin-links a { 
+            display: inline-block; 
+            margin: 10px; 
+            padding: 12px 24px; 
+            background: #2196f3; 
+            color: white; 
+            text-decoration: none; 
+            border-radius: 6px; 
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        .admin-links a:hover { 
+            background: #1976d2; 
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
+        }
+        .token-info { 
+            background: #f8f9fa; 
+            padding: 20px; 
+            border-radius: 8px; 
+            margin: 20px 0; 
+            text-align: left;
+        }
+        .token { 
+            font-family: 'Courier New', monospace; 
+            font-size: 12px; 
+            word-break: break-all; 
+            background: #e9ecef;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .copy-btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        .copy-btn:hover {
+            background: #218838;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="success">✅ OAuth2 Authentication Successful!</div>
+        <div class="info">You have successfully logged in with Google.</div>
+        
+        <div id="admin-section" style="display: none;">
+            <div class="admin">🔐 ADMIN USER DETECTED!</div>
+            <div class="info">You have ADMIN privileges and can access restricted endpoints.</div>
+            <div class="admin-links">
+                <h3>Admin Access Links:</h3>
+                <a href="/static/jwt-admin.html" target="_blank">🎯 JWT Admin Dashboard</a>
+                <a href="/static/simple-admin.html" target="_blank">🔧 Simple Admin Panel</a>
+                <a href="/swagger-ui.html" target="_blank">📚 Swagger UI</a>
+                <a href="/static/debug-auth.html" target="_blank">🔍 Debug Center</a>
+                <a href="/api/auth/session/test" target="_blank">🧪 Session Test</a>
+                <a href="/api/auth/session/2fa/status" target="_blank">🔐 2FA Status</a>
+                <a href="/api/auth/session/health" target="_blank">💚 Health Check</a>
+                <a href="#" onclick="open2FASetup()">⚙️ Setup 2FA</a>
+            </div>
+        </div>
+        
+        <div id="customer-section" style="display: none;">
+            <div class="info">You have CUSTOMER privileges.</div>
+        </div>
+        
+        <div id="admin-token-section" class="token-info" style="display: none;">
+            <h4>🔑 JWT Token for API Testing:</h4>
+            <p><small>Copy this token and click "Authorize" in Swagger UI, then paste it as "Bearer YOUR_TOKEN"</small></p>
+            <div class="token" id="token-display"></div>
+            <button class="copy-btn" onclick="copyToken()">📋 Copy Token</button>
+        </div>
+        
+        <div class="info">You can now close this window and return to your application.</div>
+    </div>
+    
+    <script>
+        function copyToken() {
+            const tokenElement = document.getElementById('token-display');
+            const token = tokenElement.textContent;
+            
+            navigator.clipboard.writeText(token).then(() => {
+                alert('Token copied to clipboard!');
+            }).catch(() => {
+                // Fallback for older browsers
+                tokenElement.select();
+                document.execCommand('copy');
+                alert('Token copied to clipboard!');
+            });
+        }
+        
+               // Check if this is being accessed directly (without user data)
+               const urlParams = new URLSearchParams(window.location.search);
+               const userJson = urlParams.get('user');
+               
+               // If no user data, redirect to OAuth2 success handler
+               if (!userJson) {
+                   console.log('No user data found, redirecting to OAuth2 success handler...');
+                   // Check if user is authenticated via JWT token
+                   const token = getCookie('jwt_token');
+                   if (token) {
+                       console.log('JWT token found, redirecting to OAuth2 success handler...');
+                       window.location.href = '/api/auth/oauth2/success';
+                   } else {
+                       console.log('No JWT token found, redirecting to OAuth2 login...');
+                       window.location.href = '/oauth2/authorization/google';
+                   }
+                   return;
+               }
+               
+               // Extract user data and determine admin status from actual user data, not URL parameter
+               let isAdmin = false;
+               let userEmail = '';
+               if (userJson) {
+                   try {
+                       const userData = JSON.parse(decodeURIComponent(userJson));
+                       userEmail = userData.email || '';
+                       
+                       // Debug: Log the full user data structure
+                       console.log('=== FULL USER DATA DEBUG ===');
+                       console.log('Raw user data:', userData);
+                       console.log('User data keys:', Object.keys(userData));
+                       console.log('Roles field:', userData.roles);
+                       console.log('Roles type:', typeof userData.roles);
+                       console.log('Roles is array:', Array.isArray(userData.roles));
+                       
+                       // Check for admin role in different possible formats
+                       if (userData.roles) {
+                           if (Array.isArray(userData.roles)) {
+                               isAdmin = userData.roles.includes('ADMIN');
+                               console.log('Roles array check:', userData.roles, '-> isAdmin:', isAdmin);
+                           } else if (typeof userData.roles === 'string') {
+                               isAdmin = userData.roles.includes('ADMIN');
+                               console.log('Roles string check:', userData.roles, '-> isAdmin:', isAdmin);
+                           } else if (userData.roles.ADMIN) {
+                               isAdmin = true;
+                               console.log('Roles object check:', userData.roles, '-> isAdmin:', isAdmin);
+                           }
+                       }
+                       
+                       console.log('Final isAdmin result:', isAdmin);
+                       console.log('=== END USER DATA DEBUG ===');
+                   } catch (e) {
+                       console.error('Error parsing user data:', e);
+                   }
+               } else {
+                   console.log('No user JSON found in URL parameters');
+                   console.log('All URL parameters:', window.location.search);
+               }
+               
+               // Check if JWT token is available in cookies (for debugging)
+               const token = getCookie('jwt_token');
+               
+               // Fallback: If we couldn't determine admin status from user data, try JWT token
+               if (!isAdmin && token) {
+                   console.log('=== JWT TOKEN FALLBACK DEBUG ===');
+                   try {
+                       const response = await fetch('/api/auth/debug/cookies');
+                       const debugData = await response.json();
+                       console.log('JWT debug data:', debugData);
+                       if (debugData.authorityNames && debugData.authorityNames.includes('ROLE_ADMIN')) {
+                           isAdmin = true;
+                           console.log('Found ADMIN role in JWT token, overriding isAdmin to true');
+                       }
+                   } catch (error) {
+                       console.error('Error checking JWT token for admin status:', error);
+                   }
+                   console.log('=== END JWT FALLBACK DEBUG ===');
+               }
+               
+               // Show appropriate sections
+               if (isAdmin) {
+                   document.getElementById('admin-section').style.display = 'block';
+                   // Show token info for admins
+                   if (token) {
+                       document.getElementById('admin-token-section').style.display = 'block';
+                       document.getElementById('token-display').textContent = 'Bearer ' + token;
+                   } else {
+                       // Show message that token is stored in HTTP-only cookie
+                       document.getElementById('admin-token-section').style.display = 'block';
+                       document.getElementById('token-display').textContent = 'JWT token stored in HTTP-only cookie (not visible for security)';
+                   }
+               } else {
+                   document.getElementById('customer-section').style.display = 'block';
+               }
+               
+               // Helper function to get cookie value
+        function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+            return null;
+        }
+        
+        function open2FASetup() {
+            if (userEmail) {
+                window.open(`/static/oauth2-2fa-setup.html?email=${encodeURIComponent(userEmail)}`, '_blank');
+            } else {
+                alert('Email not found. Please try logging in again.');
+            }
+        }
+    </script>
+</body>
+</html>

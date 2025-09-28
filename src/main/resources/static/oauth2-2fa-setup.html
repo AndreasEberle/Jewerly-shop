@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Setup 2FA - Jewelry Shop</title>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            text-align: center; 
+            padding: 40px; 
+            background-color: #e8f5e8; 
+            color: #333; 
+            line-height: 1.6; 
+        }
+        .container { 
+            max-width: 600px; 
+            margin: 0 auto; 
+            background: #ffffff; 
+            padding: 30px; 
+            border-radius: 10px; 
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); 
+        }
+        .header { 
+            color: #2c5530; 
+            margin-bottom: 30px; 
+        }
+        .qr-section { 
+            margin: 20px 0; 
+            padding: 20px; 
+            background: #f8f9fa; 
+            border-radius: 8px; 
+            display: none; 
+        }
+        .qr-code { 
+            margin: 20px 0; 
+        }
+        .secret-display { 
+            font-family: monospace; 
+            background: #e9ecef; 
+            padding: 10px; 
+            border-radius: 4px; 
+            margin: 10px 0; 
+            word-break: break-all; 
+        }
+        .setup-button { 
+            background: #28a745; 
+            color: white; 
+            padding: 12px 24px; 
+            border: none; 
+            border-radius: 5px; 
+            cursor: pointer; 
+            font-size: 16px; 
+            margin: 10px; 
+        }
+        .setup-button:hover { 
+            background: #218838; 
+        }
+        .back-button { 
+            background: #6c757d; 
+            color: white; 
+            padding: 10px 20px; 
+            border: none; 
+            border-radius: 5px; 
+            cursor: pointer; 
+            font-size: 14px; 
+            margin: 10px; 
+        }
+        .back-button:hover { 
+            background: #5a6268; 
+        }
+        .status { 
+            margin: 20px 0; 
+            padding: 15px; 
+            border-radius: 5px; 
+        }
+        .status.success { 
+            background: #d4edda; 
+            color: #155724; 
+            border: 1px solid #c3e6cb; 
+        }
+        .status.error { 
+            background: #f8d7da; 
+            color: #721c24; 
+            border: 1px solid #f5c6cb; 
+        }
+        .status.info { 
+            background: #d1ecf1; 
+            color: #0c5460; 
+            border: 1px solid #bee5eb; 
+        }
+        .instructions { 
+            text-align: left; 
+            margin: 20px 0; 
+            padding: 15px; 
+            background: #f8f9fa; 
+            border-radius: 5px; 
+        }
+        .instructions ol { 
+            margin: 10px 0; 
+            padding-left: 20px; 
+        }
+        .instructions li { 
+            margin: 8px 0; 
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="header">🔐 Setup Two-Factor Authentication</h1>
+        
+        <div id="status"></div>
+        
+        <div class="instructions">
+            <h3>📱 How to setup 2FA:</h3>
+            <ol>
+                <li>Click "Generate QR Code" below</li>
+                <li>Scan the QR code with your authenticator app (Google Authenticator, Authy, etc.)</li>
+                <li>Enter the 6-digit code from your app to verify setup</li>
+                <li>Once verified, 2FA will be enabled for your account</li>
+            </ol>
+        </div>
+        
+        <button class="setup-button" onclick="generateQRCode()">🔑 Generate QR Code</button>
+        
+        <div id="qrSection" class="qr-section">
+            <h3>📱 Scan this QR code with your authenticator app:</h3>
+            <div id="qrCode" class="qr-code"></div>
+            <div>Or enter this secret manually:</div>
+            <div id="secretDisplay" class="secret-display"></div>
+            
+            <div style="margin-top: 20px;">
+                <h4>Enter 6-digit code to verify setup:</h4>
+                <input type="text" id="verificationCode" placeholder="123456" maxlength="6" style="padding: 10px; font-size: 16px; text-align: center; letter-spacing: 2px;">
+                <br><br>
+                <button class="setup-button" onclick="verifySetup()">✅ Verify & Enable 2FA</button>
+            </div>
+        </div>
+        
+        <div style="margin-top: 30px;">
+            <button class="back-button" onclick="goBack()">← Back to Admin Panel</button>
+        </div>
+    </div>
+    
+    <script>
+        let userEmail = '';
+        let currentSecret = '';
+        
+        // Get email from URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        userEmail = urlParams.get('email') || '';
+        console.log('2FA Setup - URL parameters:', window.location.search);
+        console.log('2FA Setup - Extracted email:', userEmail);
+        
+        // Fallback: If no email in URL, try to get it from JWT token
+        if (!userEmail) {
+            console.log('No email in URL, trying to get from JWT token...');
+            try {
+                const response = await fetch('/api/auth/debug/cookies');
+                const data = await response.json();
+                if (data.userEmail) {
+                    userEmail = data.userEmail;
+                    console.log('Got email from JWT token:', userEmail);
+                }
+            } catch (error) {
+                console.error('Error getting email from JWT token:', error);
+            }
+        }
+        
+        function showStatus(message, type) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+        
+        async function generateQRCode() {
+            if (!userEmail) {
+                showStatus('❌ Email not found. Please try logging in again.', 'error');
+                return;
+            }
+            
+            showStatus('🔄 Generating QR code...', 'info');
+            
+            try {
+                const response = await fetch('/api/auth/2fa/setup', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `email=${encodeURIComponent(userEmail)}`
+                });
+                
+                const data = await response.json();
+                
+                if (data.qrCode) {
+                    currentSecret = data.secret;
+                    document.getElementById('qrCode').innerHTML = `<img src="${data.qrCode}" alt="2FA QR Code">`;
+                    document.getElementById('secretDisplay').textContent = data.secret;
+                    document.getElementById('qrSection').style.display = 'block';
+                    showStatus('✅ QR code generated! Scan it with your authenticator app.', 'success');
+                } else {
+                    showStatus('❌ Failed to generate QR code: ' + (data.error || 'Unknown error'), 'error');
+                }
+                
+            } catch (error) {
+                showStatus('❌ Error generating QR code: ' + error.message, 'error');
+            }
+        }
+        
+        async function verifySetup() {
+            const code = document.getElementById('verificationCode').value;
+            
+            if (!code || code.length !== 6) {
+                showStatus('❌ Please enter a valid 6-digit code.', 'error');
+                return;
+            }
+            
+            if (!userEmail) {
+                showStatus('❌ Email not found. Please try logging in again.', 'error');
+                return;
+            }
+            
+            showStatus('🔄 Verifying 2FA setup...', 'info');
+            
+            try {
+                const response = await fetch('/api/auth/2fa/verify-setup', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `email=${encodeURIComponent(userEmail)}&code=${encodeURIComponent(code)}&secret=${encodeURIComponent(currentSecret)}`
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showStatus('✅ 2FA setup successful! Redirecting to admin panel...', 'success');
+                    setTimeout(() => {
+                        window.location.href = '/static/oauth2-success.html?isAdmin=true';
+                    }, 2000);
+                } else {
+                    showStatus('❌ Verification failed: ' + (data.error || 'Invalid code'), 'error');
+                }
+                
+            } catch (error) {
+                showStatus('❌ Error verifying 2FA: ' + error.message, 'error');
+            }
+        }
+        
+        function goBack() {
+            window.location.href = '/static/oauth2-success.html?isAdmin=true';
+        }
+        
+        // Auto-focus on code input when QR section is shown
+        document.getElementById('verificationCode').addEventListener('focus', function() {
+            this.select();
+        });
+        
+        // Auto-submit when 6 digits are entered
+        document.getElementById('verificationCode').addEventListener('input', function(e) {
+            if (e.target.value.length === 6) {
+                verifySetup();
+            }
+        });
+    </script>
+</body>
+</html>

@@ -16,7 +16,7 @@ import andreas.kafkis.eberle.jewelry.shop.backend.service.SystemConfigService;
  * Test AWS S3 connectivity and configuration
  */
 @SpringBootTest
-@ActiveProfiles("test")
+@ActiveProfiles("testreal")
 class AwsConnectivityTest {
 
     @Autowired

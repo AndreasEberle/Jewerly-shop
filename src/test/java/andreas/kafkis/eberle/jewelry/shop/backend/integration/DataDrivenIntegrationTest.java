@@ -87,7 +87,7 @@ public class DataDrivenIntegrationTest {
     @Test
     @Sql(scripts = {"/test-data-simple.sql"}, executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
     void testInactiveProduct() {
-        UUID rubyRingId = UUID.fromString("dddddddd-dddd-dddd-dddd-dddddddddddd");
+        UUID rubyRingId = UUID.fromString("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee");
         Product rubyRing = productRepository.findById(rubyRingId).orElse(null);
         
         assertThat(rubyRing).isNotNull();

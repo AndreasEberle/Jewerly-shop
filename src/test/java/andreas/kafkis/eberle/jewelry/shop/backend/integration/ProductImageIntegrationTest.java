@@ -30,7 +30,7 @@ import andreas.kafkis.eberle.jewelry.shop.backend.repository.ProductRepository;
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@ActiveProfiles("test")
+@ActiveProfiles("testreal")
 @Transactional
 public class ProductImageIntegrationTest {
 
