@@ -88,10 +88,15 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
             String redirectUrl = getRedirectUrl(request);
             
             // Redirect to frontend with tokens in URL (for frontend to handle)
+            String userJson = objectMapper.writeValueAsString(authResponse.getUser());
+            log.info("OAuth2 Success Handler - Email from OAuth: {}", email);
+            log.info("OAuth2 Success Handler - User from authResponse: {}", authResponse.getUser().getEmail());
+            log.info("OAuth2 Success Handler - User JSON for redirect: {}", userJson);
+            
             String targetUrl = UriComponentsBuilder.fromUriString(frontendUrl + "/auth/callback")
                     .queryParam("token", authResponse.getAccessToken())
                     .queryParam("refreshToken", authResponse.getRefreshToken())
-                    .queryParam("user", URLEncoder.encode(objectMapper.writeValueAsString(authResponse.getUser()), StandardCharsets.UTF_8))
+                    .queryParam("user", URLEncoder.encode(userJson, StandardCharsets.UTF_8))
                     .queryParam("isAdmin", isAdmin)
                     .queryParam("redirect", URLEncoder.encode(redirectUrl, StandardCharsets.UTF_8))
                     .build().toUriString();

@@ -3,10 +3,17 @@ package andreas.kafkis.eberle.jewelry.shop.backend.controller;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -14,6 +21,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -59,7 +67,10 @@ public class AuthController {
     private final MetricsService metricsService;
     private final TwoFactorAuthService twoFactorAuthService;
     private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
     // private final SystemConfigService systemConfigService;
+    
+    private static final Logger log = LoggerFactory.getLogger(AuthController.class);
 
     /**
      * Register a new user
@@ -88,7 +99,20 @@ public class AuthController {
             @Parameter(description = "User registration details", required = true)
             @Valid @RequestBody RegisterRequest request
     ) {
+        log.info("Registration attempt for email: {}", request.getEmail());
+        log.info("Registration data: firstName={}, lastName={}, countryCode={}, phoneNumber={}", 
+                request.getFirstName(), request.getLastName(), request.getCountryCode(), request.getPhoneNumber());
         try {
+            // Check if user already exists
+            User existingUser = userService.findByEmailOrNull(request.getEmail());
+            if (existingUser != null) {
+                log.warn("Registration attempt with existing email: {}", request.getEmail());
+                return ResponseEntity.badRequest()
+                        .body(AuthenticationResponse.builder()
+                                .error("An account with this email already exists. Please use a different email or try logging in.")
+                                .build());
+            }
+            
             // Create user entity
             User user = User.builder()
                     .email(request.getEmail())
@@ -96,7 +120,7 @@ public class AuthController {
                     .lastName(request.getLastName())
                     .phoneCountryCode(request.getCountryCode())
                     .phoneNumber(request.getPhoneNumber())
-                    .dateOfBirth(request.getDateOfBirth())
+                    .dateOfBirth(parseDateOfBirth(request.getDateOfBirth()))
                     .gender(request.getGender())
                     .active(true)
                     .build();
@@ -135,7 +159,11 @@ public class AuthController {
             return ResponseEntity.ok(response);
 
         } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().build();
+            log.error("Registration failed for email: {}, error: {}", request.getEmail(), e.getMessage());
+            return ResponseEntity.badRequest()
+                    .body(AuthenticationResponse.builder()
+                            .error("Registration failed: " + e.getMessage())
+                            .build());
         }
     }
 
@@ -166,27 +194,73 @@ public class AuthController {
             @Parameter(description = "User login credentials", required = true)
             @Valid @RequestBody AuthenticationRequest request
     ) {
+        log.info("Login attempt for email: {}", request.getEmail());
+        log.info("Raw request body: {}", request);
+        log.info("Request email: '{}'", request.getEmail());
+        log.info("Request password: '{}'", request.getPassword());
         try {
             // Check if user exists and is OAuth-only before attempting authentication
             User user = userService.findByEmail(request.getEmail());
-            if (user != null && user.isOauthOnly()) {
+            if (user == null) {
+                log.warn("User not found for email: {}", request.getEmail());
+                return ResponseEntity.badRequest()
+                        .body(AuthenticationResponse.builder()
+                                .error("Invalid email or password. Please check your credentials and try again.")
+                                .build());
+            }
+            
+            if (user.isOauthOnly()) {
+                log.warn("OAuth-only user attempted email/password login: {}", request.getEmail());
                 return ResponseEntity.badRequest()
                         .body(AuthenticationResponse.builder()
                                 .error("This account was created with Google. Please use Google to sign in.")
                                 .build());
             }
 
+            // Debug logging for password verification
+            log.debug("Attempting login for user: {}", request.getEmail());
+            log.debug("User found in DB: {}", user.getEmail());
+            log.debug("User password hash in DB: {}", user.getPasswordHash());
+            log.debug("Password from request: {}", request.getPassword());
+            log.debug("User active status: {}", user.isActive());
+
+            // Test password matching directly
+            log.debug("Testing password: '{}'", request.getPassword());
+            log.debug("Testing against hash: '{}'", user.getPasswordHash());
+            boolean passwordMatches = passwordEncoder.matches(request.getPassword(), user.getPasswordHash());
+            log.debug("Direct password match test: {}", passwordMatches);
+            
+            // Test with known working hash
+            String testHash = passwordEncoder.encode("password");
+            log.debug("Generated test hash for 'password': {}", testHash);
+            boolean testMatch = passwordEncoder.matches("password", testHash);
+            log.debug("Test match with generated hash: {}", testMatch);
+            
+            // Load UserDetails to see what authentication manager will use
+            UserDetails userDetails = userService.loadUserByUsername(request.getEmail());
+            log.debug("UserDetails password hash: {}", userDetails.getPassword());
+            log.debug("UserDetails authorities: {}", userDetails.getAuthorities());
+            
             // Authenticate user
-            authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(
-                            request.getEmail(),
-                            request.getPassword()
-                    )
-            );
+            try {
+                authenticationManager.authenticate(
+                        new UsernamePasswordAuthenticationToken(
+                                request.getEmail(),
+                                request.getPassword()
+                        )
+                );
+                log.debug("Authentication successful for user: {}", request.getEmail());
+            } catch (org.springframework.security.authentication.BadCredentialsException e) {
+                log.warn("Authentication failed for email: {} - Invalid credentials", request.getEmail());
+                log.warn("Exception details: {}", e.getMessage());
+                return ResponseEntity.badRequest()
+                        .body(AuthenticationResponse.builder()
+                                .error("Invalid email or password. Please check your credentials and try again.")
+                                .build());
+            }
 
             // Load user details
             User authenticatedUser = userService.findByEmail(request.getEmail());
-            UserDetails userDetails = userService.loadUserByUsername(request.getEmail());
 
             // Generate tokens
             String accessToken = jwtService.generateToken(userDetails);
@@ -216,6 +290,7 @@ public class AuthController {
             return ResponseEntity.ok(response);
 
         } catch (Exception e) {
+            log.error("Login failed for email: {}, error: {}", request.getEmail(), e.getMessage());
             return ResponseEntity.badRequest().build();
         }
     }
@@ -350,6 +425,32 @@ public class AuthController {
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("Logout failed");
         }
+    }
+
+    /**
+     * Test endpoint to verify password hash (DEBUG ONLY)
+     */
+    @PostMapping("/test-password")
+    public ResponseEntity<Map<String, Object>> testPassword(@RequestBody Map<String, String> request) {
+        String email = request.get("email");
+        String password = request.get("password");
+        
+        User user = userService.findByEmail(email);
+        if (user == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "User not found"));
+        }
+        
+        boolean matches = passwordEncoder.matches(password, user.getPasswordHash());
+        
+        Map<String, Object> result = new HashMap<>();
+        result.put("email", email);
+        result.put("password", password);
+        result.put("dbHash", user.getPasswordHash());
+        result.put("matches", matches);
+        result.put("userActive", user.isActive());
+        result.put("oauthOnly", user.isOauthOnly());
+        
+        return ResponseEntity.ok(result);
     }
 
     /**
@@ -1048,6 +1149,25 @@ public class AuthController {
                 "error", e.getMessage(),
                 "hasAuth", false
             ));
+        }
+    }
+
+    /**
+     * Parse date of birth string to OffsetDateTime
+     */
+    private OffsetDateTime parseDateOfBirth(String dateOfBirth) {
+        if (dateOfBirth == null || dateOfBirth.trim().isEmpty()) {
+            return null;
+        }
+        
+        try {
+            // Parse the date string (expected format: yyyy-MM-dd from HTML date input)
+            LocalDate localDate = LocalDate.parse(dateOfBirth, DateTimeFormatter.ISO_LOCAL_DATE);
+            // Convert to OffsetDateTime at start of day in UTC
+            return localDate.atStartOfDay().atOffset(java.time.ZoneOffset.UTC);
+        } catch (DateTimeParseException e) {
+            log.warn("Failed to parse date of birth: {}", dateOfBirth, e);
+            return null;
         }
     }
 }

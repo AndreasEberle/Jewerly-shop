@@ -25,23 +25,11 @@ public class MarkupConfigurationService {
     @Value("${app.currency.markup.default:5.0}")
     private BigDecimal defaultMarkup;
 
-    @Value("${app.currency.markup.eur:5.0}")
+    @Value("${app.currency.markup.eur:3.0}")
     private BigDecimal eurMarkup;
 
-    @Value("${app.currency.markup.usd:7.0}")
-    private BigDecimal usdMarkup;
-
-    @Value("${app.currency.markup.jpy:3.0}")
+    @Value("${app.currency.markup.jpy:6.0}")
     private BigDecimal jpyMarkup;
-
-    @Value("${app.currency.markup.gbp:6.0}")
-    private BigDecimal gbpMarkup;
-
-    @Value("${app.currency.markup.cad:5.5}")
-    private BigDecimal cadMarkup;
-
-    @Value("${app.currency.markup.aud:5.5}")
-    private BigDecimal audMarkup;
 
     /**
      * Get markup percentage for a specific currency
@@ -90,7 +78,7 @@ public class MarkupConfigurationService {
     public Map<String, BigDecimal> getAllMarkupConfigurations() {
         Map<String, BigDecimal> markups = new HashMap<>();
         
-        String[] currencies = {"CHF", "EUR", "USD", "JPY", "GBP", "CAD", "AUD"};
+        String[] currencies = {"CHF", "EUR", "JPY"};
         for (String currency : currencies) {
             markups.put(currency, getMarkupPercentage(currency));
         }
@@ -105,11 +93,7 @@ public class MarkupConfigurationService {
     public void resetToDefaults() {
         setMarkupPercentage("CHF", BigDecimal.ZERO);
         setMarkupPercentage("EUR", eurMarkup);
-        setMarkupPercentage("USD", usdMarkup);
         setMarkupPercentage("JPY", jpyMarkup);
-        setMarkupPercentage("GBP", gbpMarkup);
-        setMarkupPercentage("CAD", cadMarkup);
-        setMarkupPercentage("AUD", audMarkup);
         
         log.info("Reset all markup configurations to defaults");
     }
@@ -118,11 +102,7 @@ public class MarkupConfigurationService {
         return switch (currency.toUpperCase()) {
             case "CHF" -> BigDecimal.ZERO;
             case "EUR" -> eurMarkup;
-            case "USD" -> usdMarkup;
             case "JPY" -> jpyMarkup;
-            case "GBP" -> gbpMarkup;
-            case "CAD" -> cadMarkup;
-            case "AUD" -> audMarkup;
             default -> defaultMarkup;
         };
     }

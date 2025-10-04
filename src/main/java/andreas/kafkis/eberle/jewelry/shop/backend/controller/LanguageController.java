@@ -1,7 +1,5 @@
 package andreas.kafkis.eberle.jewelry.shop.backend.controller;
 
-import java.math.BigDecimal;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -9,27 +7,25 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import andreas.kafkis.eberle.jewelry.shop.backend.entities.User;
-import andreas.kafkis.eberle.jewelry.shop.backend.service.CurrencyService;
 import andreas.kafkis.eberle.jewelry.shop.backend.service.JwtService;
+import andreas.kafkis.eberle.jewelry.shop.backend.service.LanguageService;
 import andreas.kafkis.eberle.jewelry.shop.backend.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.Data;
 
 @RestController
-@RequestMapping("/api/currency")
-@Tag(name = "Currency", description = "Currency conversion and preferences")
-public class CurrencyController {
+@RequestMapping("/api/language")
+@Tag(name = "Language", description = "Language preferences and supported languages")
+public class LanguageController {
 
     @Autowired
-    private CurrencyService currencyService;
+    private LanguageService languageService;
     
     @Autowired
     private JwtService jwtService;
@@ -38,56 +34,37 @@ public class CurrencyController {
     private UserService userService;
 
     @GetMapping("/supported")
-    @Operation(summary = "Get supported currencies")
-    public ResponseEntity<String[]> getSupportedCurrencies() {
-        return ResponseEntity.ok(currencyService.getSupportedCurrencies());
-    }
-
-    @GetMapping("/convert")
-    @Operation(summary = "Convert price between currencies")
-    public ResponseEntity<ConvertResponse> convertPrice(
-            @Parameter(description = "Price to convert") @RequestParam BigDecimal price,
-            @Parameter(description = "Source currency") @RequestParam String fromCurrency,
-            @Parameter(description = "Target currency") @RequestParam String toCurrency) {
-        
-        BigDecimal convertedPrice = currencyService.convertPrice(price, fromCurrency, toCurrency);
-        
-        ConvertResponse response = ConvertResponse.builder()
-                .originalPrice(price)
-                .originalCurrency(fromCurrency)
-                .convertedPrice(convertedPrice)
-                .targetCurrency(toCurrency)
-                .build();
-        
-        return ResponseEntity.ok(response);
+    @Operation(summary = "Get supported languages")
+    public ResponseEntity<String[]> getSupportedLanguages() {
+        return ResponseEntity.ok(languageService.getSupportedLanguages());
     }
 
     @GetMapping("/preference")
-    @Operation(summary = "Get user's preferred currency")
-    public ResponseEntity<CurrencyPreferenceResponse> getUserCurrencyPreference(
+    @Operation(summary = "Get user's preferred language")
+    public ResponseEntity<LanguagePreferenceResponse> getUserLanguagePreference(
             @RequestHeader(value = "Authorization", required = false) String authHeader,
             HttpServletRequest request) {
         
         User user = getAuthenticatedUser(authHeader, request);
         if (user == null) {
-            return ResponseEntity.ok(CurrencyPreferenceResponse.builder()
-                    .currency("CHF")
+            return ResponseEntity.ok(LanguagePreferenceResponse.builder()
+                    .language("de-DE")
                     .isDefault(true)
                     .build());
         }
 
-        String preferredCurrency = currencyService.getUserPreferredCurrency(user, "CHF");
+        String preferredLanguage = languageService.getUserPreferredLanguage(user, "de-DE");
         
-        return ResponseEntity.ok(CurrencyPreferenceResponse.builder()
-                .currency(preferredCurrency)
-                .isDefault(preferredCurrency.equals("CHF"))
+        return ResponseEntity.ok(LanguagePreferenceResponse.builder()
+                .language(preferredLanguage)
+                .isDefault(preferredLanguage.equals("de-DE"))
                 .build());
     }
 
     @PostMapping("/preference")
-    @Operation(summary = "Set user's preferred currency")
-    public ResponseEntity<CurrencyPreferenceResponse> setUserCurrencyPreference(
-            @RequestBody SetCurrencyPreferenceRequest request,
+    @Operation(summary = "Set user's preferred language")
+    public ResponseEntity<LanguagePreferenceResponse> setUserLanguagePreference(
+            @RequestBody SetLanguagePreferenceRequest request,
             @RequestHeader(value = "Authorization", required = false) String authHeader,
             HttpServletRequest httpRequest) {
         
@@ -96,33 +73,24 @@ public class CurrencyController {
             return ResponseEntity.badRequest().build();
         }
 
-        currencyService.setUserPreferredCurrency(user.getId(), request.getCurrency());
+        languageService.setUserPreferredLanguage(user.getId(), request.getLanguage());
         
-        return ResponseEntity.ok(CurrencyPreferenceResponse.builder()
-                .currency(request.getCurrency())
-                .isDefault(request.getCurrency().equals("CHF"))
+        return ResponseEntity.ok(LanguagePreferenceResponse.builder()
+                .language(request.getLanguage())
+                .isDefault(request.getLanguage().equals("de-DE"))
                 .build());
     }
 
     @Data
     @lombok.Builder
-    public static class ConvertResponse {
-        private BigDecimal originalPrice;
-        private String originalCurrency;
-        private BigDecimal convertedPrice;
-        private String targetCurrency;
-    }
-
-    @Data
-    @lombok.Builder
-    public static class CurrencyPreferenceResponse {
-        private String currency;
+    public static class LanguagePreferenceResponse {
+        private String language;
         private boolean isDefault;
     }
 
     @Data
-    public static class SetCurrencyPreferenceRequest {
-        private String currency;
+    public static class SetLanguagePreferenceRequest {
+        private String language;
     }
     
     /**

@@ -32,9 +32,23 @@ public class ProductService {
         return productRepository.save(product);
     }
 
+    public Product save(Product product) {
+        return productRepository.save(product);
+    }
+
     @Transactional(readOnly = true)
     public List<Product> listAll() {
         return productRepository.findAll();
+    }
+
+    @Transactional(readOnly = true)
+    public List<Product> findAll() {
+        return productRepository.findAll();
+    }
+
+    @Transactional(readOnly = true)
+    public Product findById(UUID id) {
+        return productRepository.findById(id).orElse(null);
     }
 
     @Transactional(readOnly = true)
@@ -171,6 +185,32 @@ public class ProductService {
 
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
         };
+    }
+
+    /**
+     * Check if a product name is unique (not used by any other product)
+     */
+    public boolean isProductNameUnique(String name, UUID excludeProductId) {
+        if (name == null || name.trim().isEmpty()) {
+            return false;
+        }
+        
+        if (excludeProductId != null) {
+            // Check if any product with different ID has this name
+            return productRepository.findByNameIgnoreCase(name)
+                    .stream()
+                    .noneMatch(product -> !product.getId().equals(excludeProductId));
+        } else {
+            // Check if any product has this name
+            return productRepository.findByNameIgnoreCase(name).isEmpty();
+        }
+    }
+
+    /**
+     * Check if a product name is unique (for new products)
+     */
+    public boolean isProductNameUnique(String name) {
+        return isProductNameUnique(name, null);
     }
 }
 

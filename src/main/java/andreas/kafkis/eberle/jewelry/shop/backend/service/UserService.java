@@ -6,6 +6,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.security.core.GrantedAuthority;
@@ -24,6 +26,8 @@ import andreas.kafkis.eberle.jewelry.shop.backend.repository.UserRepository;
 
 @Service
 public class UserService implements UserDetailsService {
+
+    private static final Logger log = LoggerFactory.getLogger(UserService.class);
 
     @Autowired
     private UserRepository userRepository;
@@ -45,8 +49,16 @@ public class UserService implements UserDetailsService {
     @Transactional(readOnly = true)
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + email));
+                .orElseThrow(() -> {
+                    log.warn("User not found with email: {}", email);
+                    return new UsernameNotFoundException("User not found with email: " + email);
+                });
 
+        log.debug("User loaded successfully: {}", email);
+        log.debug("User password hash: {}", user.getPasswordHash());
+        log.debug("User active: {}", user.isActive());
+        log.debug("User roles: {}", user.getRoles().stream().map(role -> role.getName()).collect(Collectors.toList()));
+        
         return org.springframework.security.core.userdetails.User.builder()
                 .username(user.getEmail())
                 .password(user.getPasswordHash())
@@ -89,8 +101,12 @@ public class UserService implements UserDetailsService {
 
         User savedUser = userRepository.save(user);
         
-        // Send welcome email
-        emailService.sendWelcomeEmail(savedUser);
+        // Send welcome email asynchronously
+        try {
+            emailService.sendWelcomeEmail(savedUser);
+        } catch (Exception e) {
+            log.warn("Failed to send welcome email to {}: {}", savedUser.getEmail(), e.getMessage());
+        }
         
         return savedUser;
     }
@@ -101,6 +117,13 @@ public class UserService implements UserDetailsService {
     public User findByEmail(String email) {
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + email));
+    }
+
+    /**
+     * Find user by email (returns null if not found)
+     */
+    public User findByEmailOrNull(String email) {
+        return userRepository.findByEmail(email).orElse(null);
     }
 
     /**

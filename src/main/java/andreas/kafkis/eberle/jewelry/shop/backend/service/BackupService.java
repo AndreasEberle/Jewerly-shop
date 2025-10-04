@@ -15,10 +15,11 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.Logger;
 
 import javax.sql.DataSource;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -29,7 +30,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class BackupService {
 
-    private static final Logger logger = Logger.getLogger(BackupService.class.getName());
+    private static final Logger log = LoggerFactory.getLogger(BackupService.class);
 
     @Autowired
     private DataSource dataSource;
@@ -63,7 +64,7 @@ public class BackupService {
     @Async
     @ConditionalOnProperty(name = "backup.schedule.enabled", havingValue = "true", matchIfMissing = true)
     public void performScheduledBackup() {
-        logger.info("Starting scheduled database backup...");
+        log.info("Starting scheduled database backup...");
         performBackup();
     }
 
@@ -98,7 +99,7 @@ public class BackupService {
                     // Try pg_dump first, fall back to JDBC if it fails
                     result = performPgDumpBackup(backupFilePath);
                     if (result == null) {
-                        logger.info("pg_dump failed, falling back to JDBC backup...");
+                        log.info("pg_dump failed, falling back to JDBC backup...");
                         result = performJdbcBackup(backupFilePath);
                     }
                     break;
@@ -111,7 +112,7 @@ public class BackupService {
             return result;
 
         } catch (Exception e) {
-            logger.severe("Database backup failed: " + e.getMessage());
+            log.error("Database backup failed: " + e.getMessage());
             e.printStackTrace();
             return null;
         }
@@ -125,7 +126,7 @@ public class BackupService {
             // Find pg_dump executable
             String pgDumpCommand = findPgDumpExecutable();
             if (pgDumpCommand == null) {
-                logger.warning("pg_dump executable not found");
+                log.warn("pg_dump executable not found");
                 return null;
             }
 
@@ -150,7 +151,7 @@ public class BackupService {
             processBuilder.environment().put("PGPASSWORD", databasePassword);
 
             // Execute backup
-            logger.info("Starting pg_dump backup with command: " + String.join(" ", processBuilder.command()));
+            log.info("Starting pg_dump backup with command: " + String.join(" ", processBuilder.command()));
             Process process = processBuilder.start();
             
             // Capture error output for debugging
@@ -161,22 +162,22 @@ public class BackupService {
                     errorOutput.append(line).append("\n");
                 }
                 if (errorOutput.length() > 0) {
-                    logger.info("pg_dump output: " + errorOutput.toString());
+                    log.info("pg_dump output: " + errorOutput.toString());
                 }
             }
             
             int exitCode = process.waitFor();
 
             if (exitCode == 0) {
-                logger.info("pg_dump backup completed successfully: " + backupFilePath);
+                log.info("pg_dump backup completed successfully: " + backupFilePath);
                 return backupFilePath.toString();
             } else {
-                logger.warning("pg_dump backup failed with exit code: " + exitCode);
+                log.warn("pg_dump backup failed with exit code: " + exitCode);
                 return null;
             }
 
         } catch (Exception e) {
-            logger.warning("pg_dump backup failed: " + e.getMessage());
+            log.warn("pg_dump backup failed: " + e.getMessage());
             return null;
         }
     }
@@ -186,7 +187,7 @@ public class BackupService {
      */
     private String performJdbcBackup(Path backupFilePath) {
         try {
-            logger.info("Starting JDBC backup to: " + backupFilePath);
+            log.info("Starting JDBC backup to: " + backupFilePath);
             
             try (Connection connection = dataSource.getConnection();
                  Statement statement = connection.createStatement();
@@ -246,12 +247,12 @@ public class BackupService {
                 }
                 
                 writer.flush();
-                logger.info("JDBC backup completed successfully: " + backupFilePath);
+                log.info("JDBC backup completed successfully: " + backupFilePath);
                 return backupFilePath.toString();
             }
 
         } catch (Exception e) {
-            logger.severe("JDBC backup failed: " + e.getMessage());
+            log.error("JDBC backup failed: " + e.getMessage());
             e.printStackTrace();
             return null;
         }
@@ -281,7 +282,7 @@ public class BackupService {
         if (pgDumpPath != null && !pgDumpPath.trim().isEmpty()) {
             File customPgDump = new File(pgDumpPath);
             if (customPgDump.exists() && customPgDump.canExecute()) {
-                logger.info("Using custom pg_dump path: " + pgDumpPath);
+                log.info("Using custom pg_dump path: " + pgDumpPath);
                 return pgDumpPath;
             }
         }
@@ -294,13 +295,13 @@ public class BackupService {
                 try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
                     String path = reader.readLine();
                     if (path != null && !path.trim().isEmpty()) {
-                        logger.info("Found pg_dump in PATH: " + path);
+                        log.info("Found pg_dump in PATH: " + path);
                         return "pg_dump";
                     }
                 }
             }
         } catch (Exception e) {
-            logger.fine("pg_dump not found in PATH: " + e.getMessage());
+            log.debug("pg_dump not found in PATH: " + e.getMessage());
         }
 
         // Common PostgreSQL installation paths on Windows
@@ -320,12 +321,12 @@ public class BackupService {
         for (String path : commonPaths) {
             File pgDumpFile = new File(path);
             if (pgDumpFile.exists() && pgDumpFile.canExecute()) {
-                logger.info("Found pg_dump at: " + path);
+                log.info("Found pg_dump at: " + path);
                 return path;
             }
         }
 
-        logger.warning("pg_dump executable not found in common locations");
+        log.warn("pg_dump executable not found in common locations");
         return null;
     }
 
@@ -342,13 +343,13 @@ public class BackupService {
                 .forEach(path -> {
                     try {
                         Files.delete(path);
-                        logger.info("Deleted old backup: " + path.getFileName());
+                        log.info("Deleted old backup: " + path.getFileName());
                     } catch (IOException e) {
-                        logger.warning("Failed to delete old backup: " + path.getFileName());
+                        log.warn("Failed to delete old backup: " + path.getFileName());
                     }
                 });
         } catch (Exception e) {
-            logger.warning("Failed to cleanup old backups: " + e.getMessage());
+            log.warn("Failed to cleanup old backups: " + e.getMessage());
         }
     }
 
@@ -414,7 +415,7 @@ public class BackupService {
 
             return new BackupStats(backupCount, totalSize, latestBackup);
         } catch (Exception e) {
-            logger.warning("Failed to get backup stats: " + e.getMessage());
+            log.warn("Failed to get backup stats: " + e.getMessage());
             return new BackupStats(0, 0, null);
         }
     }

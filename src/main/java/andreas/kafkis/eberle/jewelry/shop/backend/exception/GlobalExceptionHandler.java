@@ -2,8 +2,9 @@ package andreas.kafkis.eberle.jewelry.shop.backend.exception;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.Logger;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -20,7 +21,7 @@ import jakarta.servlet.http.HttpServletRequest;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    private static final Logger logger = Logger.getLogger(GlobalExceptionHandler.class.getName());
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     /**
      * Handle validation errors
@@ -30,12 +31,17 @@ public class GlobalExceptionHandler {
             MethodArgumentNotValidException ex,
             HttpServletRequest request
     ) {
+        log.error("Validation failed for request: {}", request.getRequestURI());
+        
         List<ErrorResponse.ValidationError> validationErrors = new ArrayList<>();
         
         ex.getBindingResult().getAllErrors().forEach((error) -> {
             String fieldName = ((FieldError) error).getField();
             String errorMessage = error.getDefaultMessage();
             Object rejectedValue = ((FieldError) error).getRejectedValue();
+            
+            log.error("Validation error - Field: {}, Message: {}, Rejected Value: {}", 
+                    fieldName, errorMessage, rejectedValue);
             
             validationErrors.add(ErrorResponse.ValidationError.builder()
                     .field(fieldName)
@@ -44,8 +50,15 @@ public class GlobalExceptionHandler {
                     .build());
         });
 
+        // Create a more specific error message
+        String errorMessage = validationErrors.isEmpty() ? 
+                "Validation failed" : 
+                validationErrors.stream()
+                        .map(ErrorResponse.ValidationError::getMessage)
+                        .collect(java.util.stream.Collectors.joining(". "));
+
         ErrorResponse errorResponse = ErrorResponse.badRequest(
-                "Validation failed", 
+                errorMessage, 
                 request.getRequestURI()
         );
         errorResponse.setValidationErrors(validationErrors);
@@ -61,7 +74,7 @@ public class GlobalExceptionHandler {
             Exception ex,
             HttpServletRequest request
     ) {
-        logger.warning("Authentication failed: " + ex.getMessage());
+        log.warn("Authentication failed: " + ex.getMessage());
         
         ErrorResponse errorResponse = ErrorResponse.unauthorized(
                 "Invalid credentials", 
@@ -79,7 +92,7 @@ public class GlobalExceptionHandler {
             AccessDeniedException ex,
             HttpServletRequest request
     ) {
-        logger.warning("Access denied: " + ex.getMessage());
+        log.warn("Access denied: " + ex.getMessage());
         
         ErrorResponse errorResponse = ErrorResponse.forbidden(
                 "Access denied", 
@@ -97,7 +110,7 @@ public class GlobalExceptionHandler {
             BusinessException ex,
             HttpServletRequest request
     ) {
-        logger.warning("Business exception: " + ex.getMessage());
+        log.warn("Business exception: " + ex.getMessage());
         
         ErrorResponse errorResponse = ErrorResponse.badRequest(
                 ex.getMessage(), 
@@ -115,7 +128,7 @@ public class GlobalExceptionHandler {
             ResourceNotFoundException ex,
             HttpServletRequest request
     ) {
-        logger.warning("Resource not found: " + ex.getMessage());
+        log.warn("Resource not found: " + ex.getMessage());
         
         ErrorResponse errorResponse = ErrorResponse.notFound(
                 ex.getMessage(), 
@@ -133,7 +146,7 @@ public class GlobalExceptionHandler {
             InsufficientStockException ex,
             HttpServletRequest request
     ) {
-        logger.warning("Insufficient stock: " + ex.getMessage());
+        log.warn("Insufficient stock: " + ex.getMessage());
         
         ErrorResponse errorResponse = ErrorResponse.conflict(
                 ex.getMessage(), 
@@ -151,7 +164,7 @@ public class GlobalExceptionHandler {
             IllegalArgumentException ex,
             HttpServletRequest request
     ) {
-        logger.warning("Illegal argument: " + ex.getMessage());
+        log.warn("Illegal argument: " + ex.getMessage());
         
         ErrorResponse errorResponse = ErrorResponse.badRequest(
                 ex.getMessage(), 
@@ -169,7 +182,7 @@ public class GlobalExceptionHandler {
             RuntimeException ex,
             HttpServletRequest request
     ) {
-        logger.severe("Runtime exception: " + ex.getMessage());
+        log.error("Runtime exception: " + ex.getMessage());
         ex.printStackTrace();
         
         ErrorResponse errorResponse = ErrorResponse.internalServerError(
@@ -188,7 +201,7 @@ public class GlobalExceptionHandler {
             Exception ex,
             HttpServletRequest request
     ) {
-        logger.severe("Unexpected exception: " + ex.getMessage());
+        log.error("Unexpected exception: " + ex.getMessage());
         ex.printStackTrace();
         
         ErrorResponse errorResponse = ErrorResponse.internalServerError(

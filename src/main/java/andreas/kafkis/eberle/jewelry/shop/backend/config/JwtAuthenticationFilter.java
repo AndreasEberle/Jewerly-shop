@@ -42,18 +42,29 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         final String jwt;
         final String userEmail;
 
+        System.out.println("JWT Filter: Processing request to " + request.getServletPath());
+        System.out.println("JWT Filter: Authorization header: " + (authHeader != null ? authHeader.substring(0, Math.min(20, authHeader.length())) + "..." : "null"));
+
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            System.out.println("JWT Filter: No valid Authorization header, skipping JWT processing");
             filterChain.doFilter(request, response);
             return;
         }
 
         jwt = authHeader.substring(7);
         userEmail = jwtService.extractUsername(jwt);
+        
+        System.out.println("JWT Filter: Extracted user email: " + userEmail);
 
         if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+            System.out.println("JWT Filter: Loading user details for: " + userEmail);
             UserDetails userDetails = this.userDetailsService.loadUserByUsername(userEmail);
             
+            System.out.println("JWT Filter: User details loaded: " + (userDetails != null ? userDetails.getUsername() : "null"));
+            System.out.println("JWT Filter: Token valid: " + jwtService.isTokenValid(jwt, userDetails));
+            
             if (jwtService.isTokenValid(jwt, userDetails)) {
+                System.out.println("JWT Filter: Setting authentication for user: " + userEmail);
                 UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                         userDetails,
                         null,
@@ -63,7 +74,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         new WebAuthenticationDetailsSource().buildDetails(request)
                 );
                 SecurityContextHolder.getContext().setAuthentication(authToken);
+                System.out.println("JWT Filter: Authentication set successfully");
+            } else {
+                System.out.println("JWT Filter: Token is invalid for user: " + userEmail);
             }
+        } else {
+            System.out.println("JWT Filter: User email is null or authentication already exists");
         }
         
         filterChain.doFilter(request, response);
@@ -73,7 +89,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
      * Check if the endpoint should be publicly accessible
      */
     private boolean isPublicEndpoint(String path) {
-        return path.startsWith("/api/auth/") ||
+        return path.startsWith("/api/auth/login") ||
+               path.startsWith("/api/auth/register") ||
+               path.startsWith("/api/auth/oauth2/") ||
+               path.startsWith("/api/auth/verify-2fa") ||
+               path.startsWith("/api/auth/2fa/") ||
+               path.startsWith("/api/auth/jwt/") ||
+               path.startsWith("/api/auth/debug/") ||
+               path.startsWith("/api/auth/test-password") ||
                path.startsWith("/api/products") ||  // Products can be viewed publicly
                path.startsWith("/api/backup") ||    // Backup endpoints (for now)
                path.startsWith("/actuator/") ||

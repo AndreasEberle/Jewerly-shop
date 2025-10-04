@@ -46,7 +46,10 @@ public class RateLimitingFilter implements Filter {
             "/api/health",
             "/swagger-ui",
             "/api-docs",
-            "/oauth2"
+            "/oauth2",
+            "/api/products",
+            "/api/currency",
+            "/api/language"
     );
 
     @Override

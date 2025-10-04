@@ -51,6 +51,14 @@ public class StorageService {
     }
 
     /**
+     * Store file for a product using human-readable folder name
+     */
+    public String storeFileForProduct(MultipartFile file, String productName, String productId) throws IOException {
+        String humanReadableFolder = createHumanReadableFolder(productName, productId);
+        return storeFile(file, humanReadableFolder);
+    }
+
+    /**
      * Get file URL by storage key
      */
     public String getFileUrl(String storageKey) {
@@ -257,5 +265,32 @@ public class StorageService {
             return String.format("Local: %s", 
                 systemConfigService.getLocalStoragePath());
         }
+    }
+
+    /**
+     * Create human-readable folder name from product name and ID
+     * Example: "Classic Gold Ring (abc123)" -> "classic-gold-ring-abc123"
+     */
+    private String createHumanReadableFolder(String productName, String productId) {
+        if (productName == null || productName.trim().isEmpty()) {
+            return "products/" + productId;
+        }
+        
+        // Clean the product name: lowercase, replace spaces/special chars with hyphens
+        String cleanName = productName.toLowerCase()
+            .replaceAll("[^a-z0-9\\s]", "") // Remove special characters except spaces
+            .replaceAll("\\s+", "-") // Replace spaces with hyphens
+            .replaceAll("-+", "-") // Replace multiple hyphens with single hyphen
+            .replaceAll("^-|-$", ""); // Remove leading/trailing hyphens
+        
+        // Limit length to avoid S3 key length issues
+        if (cleanName.length() > 50) {
+            cleanName = cleanName.substring(0, 50);
+        }
+        
+        // Add product ID for uniqueness
+        String shortId = productId.length() > 8 ? productId.substring(0, 8) : productId;
+        
+        return "products/" + cleanName + "-" + shortId;
     }
 }

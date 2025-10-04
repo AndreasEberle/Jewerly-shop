@@ -31,12 +31,18 @@ public class UserPreferences {
     @Column(columnDefinition = "uuid")
     private UUID id;
 
+    @Column(name = "user_id", nullable = false)
+    private UUID userId;
+
     @OneToOne
-    @JoinColumn(name = "user_id", nullable = false)
+    @JoinColumn(name = "user_id", nullable = false, insertable = false, updatable = false)
     private User user;
 
     @Column(name = "preferred_currency", nullable = false, length = 3)
     private String preferredCurrency = "CHF";
+
+    @Column(name = "preferred_language", nullable = false, length = 5)
+    private String preferredLanguage = "de-DE";
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

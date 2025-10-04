@@ -64,8 +64,10 @@ public class CurrencyService {
             userPreferencesRepository.save(existing.get());
         } else {
             UserPreferences preferences = UserPreferences.builder()
+                    .userId(userId)  // Set userId directly
                     .user(User.builder().id(userId).build())
                     .preferredCurrency(currency)
+                    .preferredLanguage("de-DE")  // Set default language
                     .build();
             userPreferencesRepository.save(preferences);
         }
@@ -127,7 +129,7 @@ public class CurrencyService {
      * Get supported currencies
      */
     public String[] getSupportedCurrencies() {
-        return new String[]{"CHF", "EUR", "USD", "JPY", "GBP", "CAD", "AUD"};
+        return new String[]{"CHF", "EUR", "JPY"};
     }
 
     /**

@@ -14,6 +14,7 @@ public interface ProductRepository extends JpaRepository<Product, UUID>, JpaSpec
     List<Product> findByActiveTrue();
     List<Product> findByActiveTrueOrderByCreatedAtDesc();
     List<Product> findByCategoriesName(String categoryName);
+    List<Product> findByNameIgnoreCase(String name);
 }
 
 

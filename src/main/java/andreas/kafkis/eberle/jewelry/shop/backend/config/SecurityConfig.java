@@ -15,6 +15,9 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import lombok.RequiredArgsConstructor;
 
@@ -30,14 +33,32 @@ public class SecurityConfig {
     private final PasswordEncoder passwordEncoder;
 
     @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOriginPatterns(java.util.Arrays.asList("http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:8080", "http://127.0.0.1:8080"));
+        configuration.setAllowedMethods(java.util.Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"));
+        configuration.setAllowedHeaders(java.util.Arrays.asList("*"));
+        configuration.setExposedHeaders(java.util.Arrays.asList("*"));
+        configuration.setAllowCredentials(true);
+        configuration.setMaxAge(3600L);
+        
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/api/**", configuration);
+        return source;
+    }
+
+    @Bean
     public SecurityFilterChain filterChain(HttpSecurity http, JwtAuthenticationFilter jwtAuthFilter) throws Exception {
         http
             .csrf(AbstractHttpConfigurer::disable)
+            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .authorizeHttpRequests(authz -> authz
                 // Public endpoints - only what's truly needed
-                       .requestMatchers("/api/auth/login", "/api/auth/register", "/api/auth/oauth2/**", "/api/auth/verify-2fa", "/api/auth/2fa/setup", "/api/auth/2fa/verify-setup", "/api/auth/2fa/global-status", "/api/auth/jwt/**", "/api/auth/debug/**", "/api/auth/oauth2/error", "/api/auth/oauth2/success", "/api/auth/oauth2/urls").permitAll()
+                       .requestMatchers("/api/auth/login", "/api/auth/register", "/api/auth/oauth2/**", "/api/auth/verify-2fa", "/api/auth/2fa/setup", "/api/auth/2fa/verify-setup", "/api/auth/2fa/global-status", "/api/auth/jwt/**", "/api/auth/debug/**", "/api/auth/oauth2/error", "/api/auth/oauth2/success", "/api/auth/oauth2/urls", "/api/auth/test-password").permitAll()
                 .requestMatchers("/api/products", "/api/products/*", "/api/products/category/**").permitAll() // Only view products publicly
                 .requestMatchers("/api/products/*/images", "/api/products/*/images/*").permitAll() // Product images
+                .requestMatchers("/api/currency/supported", "/api/currency/convert").permitAll() // Currency endpoints for guests
+                .requestMatchers("/api/language/supported").permitAll() // Language endpoints for guests
                 .requestMatchers("/error").permitAll()
                 .requestMatchers("/login/oauth2/**").permitAll() // OAuth2 endpoints
                 .requestMatchers("/oauth2/**").permitAll()

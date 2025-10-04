@@ -44,11 +44,21 @@ application-testreal.properties
 backups/*.sql
 DEPLOYMENT.md
 
-# Sensitive Flyway scripts (containing real data)
-src/main/resources/db/migration/V2__sensitive_data.sql
+# Flyway scripts with data (dummy and sensitive data - not for production)
+# Exclude all migrations except V1 (schema only)
+# V1 contains only the database schema
+# V2 contains all essential data (users, roles, categories, etc.) - excluded from Git
+src/main/resources/db/migration/V2__*.sql
+# Add more V* patterns as needed for future migrations
 
-# Test data scripts (not for production)
-src/main/resources/db/migration/V3__test_data.sql
+# Password hash generator and utility files
+password-hash-generator/
+src/main/java/PasswordHashGenerator.java
+src/main/java/PasswordHashTool.java
+src/main/java/andreas/kafkis/eberle/jewelry/shop/backend/utils/
+src/test/java/PasswordVerificationTest.java
+src/test/java/PasswordHashTest.java
+src/test/java/VerifyPassword.java
 
 # Temporary files
 *.tmp

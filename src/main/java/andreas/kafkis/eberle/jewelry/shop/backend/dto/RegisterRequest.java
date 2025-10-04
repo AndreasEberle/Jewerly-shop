@@ -1,7 +1,5 @@
 package andreas.kafkis.eberle.jewelry.shop.backend.dto;
 
-import java.time.OffsetDateTime;
-
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -24,7 +22,7 @@ public class RegisterRequest {
     @NotBlank(message = "Password is required")
     @Size(min = 8, message = "Password must be at least 8 characters long")
     @Pattern(regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).*$", 
-             message = "Password must contain at least one lowercase letter, one uppercase letter, and one digit")
+             message = "Password must contain at least one uppercase letter, one lowercase letter, and one number")
     private String password;
 
     @NotBlank(message = "First name is required")
@@ -39,13 +37,13 @@ public class RegisterRequest {
     @Size(max = 20, message = "Phone number must not exceed 20 characters")
     private String phone;
     
-    @Size(max = 10, message = "Country code must not exceed 10 characters")
+    @Size(max = 10, message = "Phone country code must not exceed 10 characters")
     private String countryCode;
     
     @Size(max = 20, message = "Phone number must not exceed 20 characters")
     private String phoneNumber;
     
-    private OffsetDateTime dateOfBirth;
+    private String dateOfBirth;
     
     @Pattern(regexp = "^(male|female|other|prefer-not-to-say)$", message = "Gender must be one of: male, female, other, prefer-not-to-say")
     private String gender;

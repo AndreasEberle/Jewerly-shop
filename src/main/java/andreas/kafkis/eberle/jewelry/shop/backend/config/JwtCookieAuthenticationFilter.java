@@ -109,6 +109,7 @@ public class JwtCookieAuthenticationFilter extends OncePerRequestFilter {
                requestURI.startsWith("/api/auth/verify-2fa") ||
                requestURI.startsWith("/api/auth/session/") ||
                requestURI.startsWith("/api/auth/jwt/") ||
+               requestURI.equals("/api/auth/me") ||  // Temporarily public for testing
                // Removed /api/auth/debug/ from public endpoints so JWT filter processes it
                requestURI.startsWith("/api/products") ||
                requestURI.startsWith("/static/") ||
