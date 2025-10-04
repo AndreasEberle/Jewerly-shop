@@ -75,6 +75,37 @@ public class ProductService {
         return productRepository.findByActiveTrue();
     }
 
+    @Transactional(readOnly = true)
+    public List<Product> findFeaturedProducts(int limit) {
+        // For now, return the first N active products
+        // In a real application, you might have a "featured" flag or use analytics
+        return productRepository.findByActiveTrueOrderByCreatedAtDesc()
+                .stream()
+                .peek(product -> {
+                    // Eagerly load categories to avoid LazyInitializationException
+                    product.getCategories().size();
+                })
+                .limit(limit)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<Product> findFeaturedProducts(int limit, String targetCurrency) {
+        List<Product> products = findFeaturedProducts(limit);
+        
+        // Convert prices to target currency if different from base currency
+        if (targetCurrency != null && !targetCurrency.equals("CHF")) {
+            products.forEach(product -> {
+                if (!product.getBaseCurrency().equals(targetCurrency)) {
+                    // This would be handled by the controller with CurrencyService
+                    // For now, we just return the products as-is
+                }
+            });
+        }
+        
+        return products;
+    }
+
     /**
      * Create dynamic search specification for products
      */

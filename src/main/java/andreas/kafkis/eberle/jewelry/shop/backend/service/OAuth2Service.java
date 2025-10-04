@@ -144,7 +144,14 @@ public class OAuth2Service {
         Optional<User> existingUser = userRepository.findByEmailIgnoreCase(normalizedEmail);
         if (existingUser.isPresent()) {
             logger.debug("Found existing OAuth2 user for email: " + normalizedEmail);
-            return existingUser.get();
+            User user = existingUser.get();
+            // Mark as OAuth-only if not already marked
+            if (!user.isOauthOnly()) {
+                user.setOauthOnly(true);
+                userRepository.save(user);
+                logger.debug("Marked existing user as OAuth-only: " + normalizedEmail);
+            }
+            return user;
         }
         
         // User doesn't exist, try to create new one
@@ -187,6 +194,7 @@ public class OAuth2Service {
                 .lastName(lastName != null ? lastName : "User")
                 .passwordHash("") // OAuth users don't have passwords
                 .active(true)
+                .oauthOnly(true) // Mark as OAuth-only
                 .roles(Set.of(customerRole))
                 .build();
 

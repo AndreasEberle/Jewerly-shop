@@ -10,11 +10,11 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/api/**")
-                .allowedOrigins("http://localhost:8080", "http://127.0.0.1:8080", "*")
+                .allowedOrigins("http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:8080", "http://127.0.0.1:8080")
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD")
                 .allowedHeaders("*")
                 .exposedHeaders("*")
-                .allowCredentials(false)  // Firefox is strict about this with wildcard origins
+                .allowCredentials(true)  // Allow credentials for HTTP-only cookies
                 .maxAge(3600);
         
         // Firefox-specific mapping for analytics

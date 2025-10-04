@@ -53,7 +53,7 @@ public class ProductImageIntegrationTest {
                 .name("Integration Test Jewelry")
                 .description("Product for integration testing")
                 .priceCents(15000L)
-                .currency("EUR")
+                .baseCurrency("EUR")
                 .material("Silver")
                 .gemstone("Ruby")
                 .weightGrams(BigDecimal.valueOf(8.5))

@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -78,6 +79,16 @@ public class ProductController {
     @GetMapping("/active")
     public ResponseEntity<List<Product>> getActiveProducts() {
         return ResponseEntity.ok(productService.findActiveProducts());
+    }
+
+    /**
+     * Get featured products
+     */
+    @GetMapping("/featured")
+    public ResponseEntity<List<Product>> getFeaturedProducts(
+            @RequestParam(defaultValue = "8") int limit,
+            @RequestHeader(value = "X-Currency", defaultValue = "CHF") String currency) {
+        return ResponseEntity.ok(productService.findFeaturedProducts(limit, currency));
     }
 
     /**

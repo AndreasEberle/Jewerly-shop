@@ -65,7 +65,7 @@ class ProductServiceTest {
         testProduct.setSku("RING001");
         testProduct.setDescription("Beautiful diamond ring");
         testProduct.setPriceCents(500000L); // $5000.00
-        testProduct.setCurrency("USD");
+        testProduct.setBaseCurrency("USD");
         testProduct.setMaterial("Gold");
         testProduct.setGemstone("Diamond");
         testProduct.setWeightGrams(BigDecimal.valueOf(5.5));

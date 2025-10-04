@@ -42,7 +42,7 @@ public class ProductImageRepositoryTest {
                 .name("Test Jewelry")
                 .description("Test jewelry product")
                 .priceCents(10000L)
-                .currency("EUR")
+                .baseCurrency("EUR")
                 .material("Gold")
                 .gemstone("Diamond")
                 .weightGrams(BigDecimal.valueOf(10.5))

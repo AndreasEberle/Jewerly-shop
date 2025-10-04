@@ -1,5 +1,7 @@
 package andreas.kafkis.eberle.jewelry.shop.backend.dto;
 
+import java.time.OffsetDateTime;
+
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -34,6 +36,40 @@ public class RegisterRequest {
     private String lastName;
 
     @Pattern(regexp = "^[+]?[0-9\\s\\-\\(\\)]*$", message = "Phone number format is invalid")
-    @Size(max = 50, message = "Phone number must not exceed 50 characters")
+    @Size(max = 20, message = "Phone number must not exceed 20 characters")
     private String phone;
+    
+    @Size(max = 10, message = "Country code must not exceed 10 characters")
+    private String countryCode;
+    
+    @Size(max = 20, message = "Phone number must not exceed 20 characters")
+    private String phoneNumber;
+    
+    private OffsetDateTime dateOfBirth;
+    
+    @Pattern(regexp = "^(male|female|other|prefer-not-to-say)$", message = "Gender must be one of: male, female, other, prefer-not-to-say")
+    private String gender;
+    
+    private AddressRequest address;
+    
+    @Data
+    @Builder
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class AddressRequest {
+        @Size(max = 255, message = "Street address must not exceed 255 characters")
+        private String street;
+        
+        @Size(max = 100, message = "City must not exceed 100 characters")
+        private String city;
+        
+        @Size(max = 100, message = "State must not exceed 100 characters")
+        private String state;
+        
+        @Size(max = 30, message = "ZIP code must not exceed 30 characters")
+        private String zipCode;
+        
+        @Size(max = 100, message = "Country must not exceed 100 characters")
+        private String country;
+    }
 }

@@ -17,4 +17,5 @@ public class AuthenticationResponse {
     private Long expiresIn;
     private Boolean requires2FA;
     private UserInfo user;
+    private String error; // For error messages
 }

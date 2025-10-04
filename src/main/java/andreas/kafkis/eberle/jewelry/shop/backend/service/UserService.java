@@ -125,8 +125,17 @@ public class UserService implements UserDetailsService {
         if (userUpdates.getLastName() != null) {
             existingUser.setLastName(userUpdates.getLastName());
         }
-        if (userUpdates.getPhone() != null) {
-            existingUser.setPhone(userUpdates.getPhone());
+        if (userUpdates.getPhoneCountryCode() != null) {
+            existingUser.setPhoneCountryCode(userUpdates.getPhoneCountryCode());
+        }
+        if (userUpdates.getPhoneNumber() != null) {
+            existingUser.setPhoneNumber(userUpdates.getPhoneNumber());
+        }
+        if (userUpdates.getDateOfBirth() != null) {
+            existingUser.setDateOfBirth(userUpdates.getDateOfBirth());
+        }
+        if (userUpdates.getGender() != null) {
+            existingUser.setGender(userUpdates.getGender());
         }
         
         return userRepository.save(existingUser);

@@ -20,7 +20,15 @@ public class RateLimitInterceptor implements HandlerInterceptor {
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
         String clientId = getClientId(request);
-        Bucket bucket = buckets.computeIfAbsent(clientId, k -> createNewBucket());
+        Bucket bucket = buckets.get(clientId);
+        
+        if (bucket == null) {
+            bucket = createNewBucket();
+            Bucket existingBucket = buckets.putIfAbsent(clientId, bucket);
+            if (existingBucket != null) {
+                bucket = existingBucket;
+            }
+        }
         
         if (bucket.tryConsume(1)) {
             return true;

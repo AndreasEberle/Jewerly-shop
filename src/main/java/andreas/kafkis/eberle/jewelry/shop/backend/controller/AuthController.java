@@ -94,7 +94,10 @@ public class AuthController {
                     .email(request.getEmail())
                     .firstName(request.getFirstName())
                     .lastName(request.getLastName())
-                    .phone(request.getPhone())
+                    .phoneCountryCode(request.getCountryCode())
+                    .phoneNumber(request.getPhoneNumber())
+                    .dateOfBirth(request.getDateOfBirth())
+                    .gender(request.getGender())
                     .active(true)
                     .build();
 
@@ -164,6 +167,15 @@ public class AuthController {
             @Valid @RequestBody AuthenticationRequest request
     ) {
         try {
+            // Check if user exists and is OAuth-only before attempting authentication
+            User user = userService.findByEmail(request.getEmail());
+            if (user != null && user.isOauthOnly()) {
+                return ResponseEntity.badRequest()
+                        .body(AuthenticationResponse.builder()
+                                .error("This account was created with Google. Please use Google to sign in.")
+                                .build());
+            }
+
             // Authenticate user
             authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(
@@ -173,7 +185,7 @@ public class AuthController {
             );
 
             // Load user details
-            User user = userService.findByEmail(request.getEmail());
+            User authenticatedUser = userService.findByEmail(request.getEmail());
             UserDetails userDetails = userService.loadUserByUsername(request.getEmail());
 
             // Generate tokens
@@ -263,14 +275,32 @@ public class AuthController {
      */
     @GetMapping("/me")
     public ResponseEntity<UserInfo> getCurrentUser(
-            @RequestHeader("Authorization") String authHeader
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            HttpServletRequest request
     ) {
         try {
-            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            String token = null;
+            
+            // Try to get token from Authorization header first (for email/password login)
+            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                token = authHeader.substring(7);
+            } else {
+                // Try to get token from HTTP-only cookie (for OAuth login)
+                Cookie[] cookies = request.getCookies();
+                if (cookies != null) {
+                    for (Cookie cookie : cookies) {
+                        if ("jwt_token".equals(cookie.getName())) {
+                            token = cookie.getValue();
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            if (token == null) {
                 return ResponseEntity.badRequest().build();
             }
 
-            String token = authHeader.substring(7);
             String userEmail = jwtService.extractUsername(token);
 
             if (userEmail != null) {
@@ -294,6 +324,31 @@ public class AuthController {
 
         } catch (Exception e) {
             return ResponseEntity.badRequest().build();
+        }
+    }
+
+    /**
+     * Logout user and clear cookies
+     */
+    @PostMapping("/logout")
+    public ResponseEntity<String> logout(HttpServletResponse response) {
+        try {
+            // Clear HTTP-only cookies
+            Cookie accessTokenCookie = new Cookie("jwt_token", null);
+            accessTokenCookie.setHttpOnly(true);
+            accessTokenCookie.setPath("/");
+            accessTokenCookie.setMaxAge(0);
+            response.addCookie(accessTokenCookie);
+            
+            Cookie refreshTokenCookie = new Cookie("jwt_refresh_token", null);
+            refreshTokenCookie.setHttpOnly(true);
+            refreshTokenCookie.setPath("/");
+            refreshTokenCookie.setMaxAge(0);
+            response.addCookie(refreshTokenCookie);
+            
+            return ResponseEntity.ok("Logged out successfully");
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Logout failed");
         }
     }
 

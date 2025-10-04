@@ -33,6 +33,9 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
 
     @Value("${app.oauth2.authorized-redirect-uris:http://localhost:3000/auth/callback}")
     private String redirectUri;
+    
+    @Value("${app.frontend.url:http://localhost:3000}")
+    private String frontendUrl;
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
@@ -81,13 +84,19 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
                 setHttpOnlyCookie(response, "jwt_refresh_token", authResponse.getRefreshToken(), 604800); // 7 days
             }
             
-            // Redirect to our custom success page (without tokens in URL for security)
-            String successUrl = "http://localhost:8080/api/auth/oauth2/success";
-            String targetUrl = UriComponentsBuilder.fromUriString(successUrl)
+            // Get redirect URL from saved request or default to home
+            String redirectUrl = getRedirectUrl(request);
+            
+            // Redirect to frontend with tokens in URL (for frontend to handle)
+            String targetUrl = UriComponentsBuilder.fromUriString(frontendUrl + "/auth/callback")
+                    .queryParam("token", authResponse.getAccessToken())
+                    .queryParam("refreshToken", authResponse.getRefreshToken())
                     .queryParam("user", URLEncoder.encode(objectMapper.writeValueAsString(authResponse.getUser()), StandardCharsets.UTF_8))
                     .queryParam("isAdmin", isAdmin)
+                    .queryParam("redirect", URLEncoder.encode(redirectUrl, StandardCharsets.UTF_8))
                     .build().toUriString();
 
+            log.info("Redirecting to frontend: {}", targetUrl);
             getRedirectStrategy().sendRedirect(request, response, targetUrl);
             
             // Option 2: Return JSON response (for API-only approach)
@@ -123,5 +132,19 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
         cookie.setMaxAge(maxAgeSeconds);
         response.addCookie(cookie);
         log.debug("Set HTTP-only cookie: {} with maxAge: {} seconds", name, maxAgeSeconds);
+    }
+    
+    private String getRedirectUrl(HttpServletRequest request) {
+        // Try to get redirect URL from session or request
+        String redirectUrl = (String) request.getSession().getAttribute("redirectUrl");
+        if (redirectUrl == null) {
+            // Check for redirect parameter in the request
+            redirectUrl = request.getParameter("redirect");
+        }
+        if (redirectUrl == null) {
+            // Default to home page
+            redirectUrl = "/";
+        }
+        return redirectUrl;
     }
 }

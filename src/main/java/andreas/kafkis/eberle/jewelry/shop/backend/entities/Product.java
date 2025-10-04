@@ -1,5 +1,6 @@
 package andreas.kafkis.eberle.jewelry.shop.backend.entities;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.HashSet;
 import java.util.List;
@@ -49,8 +50,8 @@ public class Product {
     @Column(name = "price_cents", nullable = false)
     private Long priceCents;
 
-    @Column(nullable = false, length = 3)
-    private String currency = "EUR";
+    @Column(name = "base_currency", nullable = false, length = 3)
+    private String baseCurrency = "CHF";
 
     @Column(length = 100)
     private String material;
@@ -86,5 +87,10 @@ public class Product {
 
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProductImage> images;
+
+    // Custom getter to convert priceCents to price
+    public BigDecimal getPrice() {
+        return priceCents != null ? new BigDecimal(priceCents).divide(new BigDecimal(100)) : BigDecimal.ZERO;
+    }
 }
 
