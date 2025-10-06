@@ -123,6 +123,7 @@ public class LanguageController {
             String userEmail = jwtService.extractUsername(token);
             if (userEmail != null) {
                 return userService.findByEmail(userEmail);
+                        
             }
         } catch (Exception e) {
             // Log error and return null

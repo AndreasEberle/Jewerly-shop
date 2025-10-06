@@ -10,6 +10,7 @@ import java.time.format.DateTimeParseException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
@@ -21,6 +22,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -126,10 +128,11 @@ public class AuthController {
                     .build();
 
             // Save user with encoded password
-            User savedUser = userService.createUser(user, request.getPassword());
+            // Optional<User> savedUser = userService.createUser(user, request.getPassword());
+            Optional<User> savedOptionaluser = userService.createUser(user);
 
             // Load user details for JWT generation
-            UserDetails userDetails = userService.loadUserByUsername(savedUser.getEmail());
+            UserDetails userDetails = userService.loadUserByUsername(savedOptionaluser.get().getEmail());
 
             // Generate tokens
             String accessToken = jwtService.generateToken(userDetails);
@@ -145,14 +148,14 @@ public class AuthController {
                     .tokenType("Bearer")
                     .expiresIn(86400L) // 24 hours in seconds
                     .user(UserInfo.builder()
-                            .id(savedUser.getId().toString())
-                            .email(savedUser.getEmail())
-                            .firstName(savedUser.getFirstName())
-                            .lastName(savedUser.getLastName())
-                            .roles(savedUser.getRoles().stream()
+                            .id(savedOptionaluser.get().getId().toString())
+                            .email(savedOptionaluser.get().getEmail())
+                            .firstName(savedOptionaluser.get().getFirstName())
+                            .lastName(savedOptionaluser.get().getLastName())
+                            .roles(savedOptionaluser.get().getRoles().stream()
                                     .map(role -> role.getName())
                                     .collect(Collectors.toSet()))
-                            .active(savedUser.isActive())
+                            .active(savedOptionaluser.get().isActive())
                             .build())
                     .build();
 
@@ -200,12 +203,12 @@ public class AuthController {
         log.info("Request password: '{}'", request.getPassword());
         try {
             // Check if user exists and is OAuth-only before attempting authentication
-            User user = userService.findByEmail(request.getEmail());
+            User user = userService.findByEmailOrNull(request.getEmail());
             if (user == null) {
                 log.warn("User not found for email: {}", request.getEmail());
                 return ResponseEntity.badRequest()
                         .body(AuthenticationResponse.builder()
-                                .error("Invalid email or password. Please check your credentials and try again.")
+                                .error("No account found with this email address. Please check your email or create a new account.")
                                 .build());
             }
             
@@ -260,7 +263,11 @@ public class AuthController {
             }
 
             // Load user details
-            User authenticatedUser = userService.findByEmail(request.getEmail());
+            User authenticatedUser = userRepository.findByEmail(request.getEmail());
+            if (authenticatedUser == null) {
+                throw new UsernameNotFoundException("User not found with email: " + request.getEmail());
+            }
+
 
             // Generate tokens
             String accessToken = jwtService.generateToken(userDetails);
@@ -312,7 +319,11 @@ public class AuthController {
 
             if (userEmail != null) {
                 UserDetails userDetails = userService.loadUserByUsername(userEmail);
-                User user = userService.findByEmail(userEmail);
+                User user = userRepository.findByEmail(userEmail);
+                if (user == null) {
+                    throw new UsernameNotFoundException("User not found with email: " + userEmail);
+                }
+
 
                 if (jwtService.isTokenValid(refreshToken, userDetails)) {
                     String newAccessToken = jwtService.generateToken(userDetails);
@@ -380,6 +391,9 @@ public class AuthController {
 
             if (userEmail != null) {
                 User user = userService.findByEmail(userEmail);
+        		 if (user == null) {
+                     throw new UsernameNotFoundException("User not found with email: " + userEmail);
+                 }
 
                 UserInfo userInfo = UserInfo.builder()
                         .id(user.getId().toString())

@@ -158,7 +158,7 @@ public class VisibleS3Test {
         System.out.println("\n📤 STEP 2: LOCAL UPLOAD + DOWNLOAD TO 'products-test'");
         
         // Switch to local storage
-        systemConfigService.updateConfig("USE_S3_STORAGE", "false");
+        systemConfigService.updateConfigValue("USE_S3_STORAGE", "false");
         
         // Upload to local storage (but don't create uploads folders)
         String localKey = storageService.storeFile(testFile, "local-test");
@@ -181,34 +181,34 @@ public class VisibleS3Test {
     private void setupS3Config() {
         // Set storage type to S3 in the database for the StorageService
         try {
-            systemConfigService.updateConfig("USE_S3_STORAGE", "true");
+            systemConfigService.updateConfigValue("USE_S3_STORAGE", "true");
         } catch (Exception e) {
             systemConfigService.createConfig("USE_S3_STORAGE", "true", "Use S3 storage instead of local storage");
         }
         
         // Set S3 configuration in the database for the StorageService
         try {
-            systemConfigService.updateConfig("S3_BUCKET_NAME", s3BucketName);
+            systemConfigService.updateConfigValue("S3_BUCKET_NAME", s3BucketName);
         } catch (Exception e) {
             systemConfigService.createConfig("S3_BUCKET_NAME", s3BucketName, "S3 bucket name");
         }
         
         try {
-            systemConfigService.updateConfig("S3_REGION", s3Region);
+            systemConfigService.updateConfigValue("S3_REGION", s3Region);
         } catch (Exception e) {
             systemConfigService.createConfig("S3_REGION", s3Region, "S3 region");
         }
         
         // Set local storage path for when we switch to local storage
         try {
-            systemConfigService.updateConfig("LOCAL_STORAGE_PATH", "uploads/");
+            systemConfigService.updateConfigValue("LOCAL_STORAGE_PATH", "uploads/");
         } catch (Exception e) {
             systemConfigService.createConfig("LOCAL_STORAGE_PATH", "uploads/", "Local storage path");
         }
         
         // Set public base URL for local storage
         try {
-            systemConfigService.updateConfig("PUBLIC_BASE_URL", "http://localhost:8080/");
+            systemConfigService.updateConfigValue("PUBLIC_BASE_URL", "http://localhost:8080/");
         } catch (Exception e) {
             systemConfigService.createConfig("PUBLIC_BASE_URL", "http://localhost:8080/", "Public base URL");
         }

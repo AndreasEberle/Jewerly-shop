@@ -1,7 +1,7 @@
 package andreas.kafkis.eberle.jewelry.shop.backend.service;
 
 import java.util.Collection;
-import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -37,197 +37,167 @@ public class UserService implements UserDetailsService {
 
     @Autowired
     @Lazy
-    private EmailService emailService;
-
-    @Autowired
     private PasswordEncoder passwordEncoder;
 
-    /**
-     * Load user by username (email) for Spring Security
-     */
     @Override
     @Transactional(readOnly = true)
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> {
-                    log.warn("User not found with email: {}", email);
-                    return new UsernameNotFoundException("User not found with email: " + email);
-                });
+    	User user = userRepository.findByEmail(email);
+    	if (user == null) {
+    	    throw new UsernameNotFoundException("User not found with email: " + email);
+    	}
 
-        log.debug("User loaded successfully: {}", email);
-        log.debug("User password hash: {}", user.getPasswordHash());
-        log.debug("User active: {}", user.isActive());
-        log.debug("User roles: {}", user.getRoles().stream().map(role -> role.getName()).collect(Collectors.toList()));
-        
+
         return org.springframework.security.core.userdetails.User.builder()
                 .username(user.getEmail())
                 .password(user.getPasswordHash())
-                .authorities(getAuthorities(user.getRoles()))
-                .accountExpired(false)
-                .accountLocked(!user.isActive())
-                .credentialsExpired(false)
                 .disabled(!user.isActive())
+                .authorities(getAuthorities(user.getRoles()))
                 .build();
     }
 
-    /**
-     * Convert user roles to Spring Security authorities
-     */
     private Collection<? extends GrantedAuthority> getAuthorities(Set<Role> roles) {
         return roles.stream()
-                .map(role -> new SimpleGrantedAuthority("ROLE_" + role.getName().toUpperCase()))
+                .map(role -> new SimpleGrantedAuthority("ROLE_" + role.getName()))
                 .collect(Collectors.toList());
     }
 
-    /**
-     * Create a new user
-     */
     @Transactional
-    public User createUser(User user, String rawPassword) {
-        // Check if user already exists
-        if (userRepository.findByEmail(user.getEmail()).isPresent()) {
-            throw new RuntimeException("User with email " + user.getEmail() + " already exists");
-        }
-
-        // Encode password
-        user.setPasswordHash(passwordEncoder.encode(rawPassword));
-
-        // Assign default role if no roles specified
-        if (user.getRoles() == null || user.getRoles().isEmpty()) {
-            Role customerRole = roleRepository.findByName("CUSTOMER")
-                    .orElseThrow(() -> new RuntimeException("Default role CUSTOMER not found"));
-            user.setRoles(Set.of(customerRole));
-        }
-
-        User savedUser = userRepository.save(user);
-        
-        // Send welcome email asynchronously
+    public Optional<User> createUser(User user) {
         try {
-            emailService.sendWelcomeEmail(savedUser);
+            // Hash password
+            user.setPasswordHash(passwordEncoder.encode(user.getPasswordHash()));
+            
+            // Set default role if no roles assigned
+            if (user.getRoles().isEmpty()) {
+                Role userRole = roleRepository.findByName("USER")
+                        .orElseThrow(() -> new RuntimeException("Default USER role not found"));
+                user.getRoles().add(userRole);
+            }
+            
+            User savedUser = userRepository.save(user);
+            log.info("Created user: {}", savedUser.getEmail());
+            return Optional.of(savedUser);
         } catch (Exception e) {
-            log.warn("Failed to send welcome email to {}: {}", savedUser.getEmail(), e.getMessage());
+            log.error("Error creating user: {}", e.getMessage(), e);
+            return Optional.empty();
         }
-        
-        return savedUser;
     }
 
-    /**
-     * Find user by email
-     */
+    @Transactional(readOnly = true)
     public User findByEmail(String email) {
-        return userRepository.findByEmail(email)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + email));
+        return userRepository.findByEmail(email);
     }
 
-    /**
-     * Find user by email (returns null if not found)
-     */
+    @Transactional(readOnly = true)
     public User findByEmailOrNull(String email) {
-        return userRepository.findByEmail(email).orElse(null);
+        return userRepository.findByEmail(email);
     }
 
-    /**
-     * Find user by ID
-     */
-    public User findById(UUID id) {
-        return userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("User not found with id: " + id));
+    @Transactional(readOnly = true)
+    public Optional<User> findById(UUID id) {
+        return userRepository.findById(id);
     }
 
-    /**
-     * Update user profile
-     */
     @Transactional
-    public User updateUser(UUID userId, User userUpdates) {
-        User existingUser = findById(userId);
-        
-        // Update allowed fields
-        if (userUpdates.getFirstName() != null) {
-            existingUser.setFirstName(userUpdates.getFirstName());
+    public Optional<User> updateUser(UUID id, User userUpdates) {
+        try {
+            User existingUser = userRepository.findById(id)
+                    .orElseThrow(() -> new RuntimeException("User not found with id: " + id));
+
+            // Update fields if provided
+            if (userUpdates.getFirstName() != null) {
+                existingUser.setFirstName(userUpdates.getFirstName());
+            }
+            if (userUpdates.getLastName() != null) {
+                existingUser.setLastName(userUpdates.getLastName());
+            }
+            if (userUpdates.getPhoneCountryCode() != null) {
+                existingUser.setPhoneCountryCode(userUpdates.getPhoneCountryCode());
+            }
+            if (userUpdates.getPhoneNumber() != null) {
+                existingUser.setPhoneNumber(userUpdates.getPhoneNumber());
+            }
+            if (userUpdates.getDateOfBirth() != null) {
+                existingUser.setDateOfBirth(userUpdates.getDateOfBirth());
+            }
+            if (userUpdates.getGender() != null) {
+                existingUser.setGender(userUpdates.getGender());
+            }
+
+            // Update password if provided
+            if (userUpdates.getPasswordHash() != null && !userUpdates.getPasswordHash().isEmpty()) {
+                existingUser.setPasswordHash(passwordEncoder.encode(userUpdates.getPasswordHash()));
+            }
+
+            User savedUser = userRepository.save(existingUser);
+            return Optional.of(savedUser);
+        } catch (Exception e) {
+            log.error("Error updating user with id {}: {}", id, e.getMessage(), e);
+            return Optional.empty();
         }
-        if (userUpdates.getLastName() != null) {
-            existingUser.setLastName(userUpdates.getLastName());
-        }
-        if (userUpdates.getPhoneCountryCode() != null) {
-            existingUser.setPhoneCountryCode(userUpdates.getPhoneCountryCode());
-        }
-        if (userUpdates.getPhoneNumber() != null) {
-            existingUser.setPhoneNumber(userUpdates.getPhoneNumber());
-        }
-        if (userUpdates.getDateOfBirth() != null) {
-            existingUser.setDateOfBirth(userUpdates.getDateOfBirth());
-        }
-        if (userUpdates.getGender() != null) {
-            existingUser.setGender(userUpdates.getGender());
-        }
-        
-        return userRepository.save(existingUser);
     }
 
-    /**
-     * Change user password
-     */
     @Transactional
-    public void changePassword(UUID userId, String oldPassword, String newPassword) {
-        User user = findById(userId);
-        
-        // Verify old password
-        if (!passwordEncoder.matches(oldPassword, user.getPasswordHash())) {
-            throw new RuntimeException("Current password is incorrect");
-        }
-        
-        // Update password
-        user.setPasswordHash(passwordEncoder.encode(newPassword));
-        userRepository.save(user);
+    public void deleteUser(UUID id) {
+        userRepository.deleteById(id);
+        log.info("Deleted user with id: {}", id);
     }
 
-    /**
-     * Activate/deactivate user
-     */
+    @Transactional(readOnly = true)
+    public boolean existsByEmail(String email) {
+        return userRepository.existsByEmail(email);
+    }
+
     @Transactional
     public void setUserActive(UUID userId, boolean active) {
-        User user = findById(userId);
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found with id: " + userId));
+        
         user.setActive(active);
         userRepository.save(user);
+        log.info("Set user {} active status to {}", userId, active);
     }
 
-    /**
-     * Add role to user
-     */
     @Transactional
     public void addRoleToUser(UUID userId, String roleName) {
-        User user = findById(userId);
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found with id: " + userId));
+        
         Role role = roleRepository.findByName(roleName)
                 .orElseThrow(() -> new RuntimeException("Role not found: " + roleName));
         
         if (user.getRoles() == null) {
-            user.setRoles(new HashSet<>());
+            user.setRoles(new java.util.HashSet<>());
         }
+        
         user.getRoles().add(role);
         userRepository.save(user);
+        log.info("Added role {} to user {}", roleName, userId);
     }
 
-    /**
-     * Remove role from user
-     */
     @Transactional
     public void removeRoleFromUser(UUID userId, String roleName) {
-        User user = findById(userId);
-        Role role = roleRepository.findByName(roleName)
-                .orElseThrow(() -> new RuntimeException("Role not found: " + roleName));
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found with id: " + userId));
         
         if (user.getRoles() != null) {
-            user.getRoles().remove(role);
+            user.getRoles().removeIf(role -> role.getName().equals(roleName));
             userRepository.save(user);
+            log.info("Removed role {} from user {}", roleName, userId);
         }
     }
 
-    /**
-     * Check if user has specific role
-     */
+    @Transactional(readOnly = true)
     public boolean hasRole(UUID userId, String roleName) {
-        User user = findById(userId);
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found with id: " + userId));
+        
+        if (user.getRoles() == null) {
+            return false;
+        }
+        
         return user.getRoles().stream()
-                .anyMatch(role -> role.getName().equalsIgnoreCase(roleName));
+                .anyMatch(role -> role.getName().equals(roleName));
     }
 }

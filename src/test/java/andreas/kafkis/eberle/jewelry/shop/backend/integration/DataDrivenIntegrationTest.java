@@ -167,12 +167,12 @@ public class DataDrivenIntegrationTest {
     @Test
     @Sql(scripts = {"/test-data-simple.sql"}, executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
     void testUserEmailLookup() {
-        User userByEmail = userRepository.findByEmail("customer@jewelry.com").orElse(null);
+        User userByEmail = userRepository.findByEmail("customer@jewelry.com");
         assertThat(userByEmail).isNotNull();
         assertThat(userByEmail.getFirstName()).isEqualTo("John");
         assertThat(userByEmail.getLastName()).isEqualTo("Doe");
         
-        User nonExistentEmail = userRepository.findByEmail("nonexistent@example.com").orElse(null);
+        User nonExistentEmail = userRepository.findByEmail("nonexistent@example.com");
         assertThat(nonExistentEmail).isNull();
     }
 }

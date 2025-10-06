@@ -6,11 +6,14 @@ import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.stereotype.Repository;
 
 import andreas.kafkis.eberle.jewelry.shop.backend.entities.Product;
 
+@Repository
 public interface ProductRepository extends JpaRepository<Product, UUID>, JpaSpecificationExecutor<Product> {
     Optional<Product> findBySku(String sku);
+    Optional<Product> findByName(String name);
     List<Product> findByActiveTrue();
     List<Product> findByActiveTrueOrderByCreatedAtDesc();
     List<Product> findByCategoriesName(String categoryName);

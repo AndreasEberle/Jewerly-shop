@@ -48,7 +48,9 @@ DEPLOYMENT.md
 # Exclude all migrations except V1 (schema only)
 # V1 contains only the database schema
 # V2 contains all essential data (users, roles, categories, etc.) - excluded from Git
+# V3 contains cleanup operations - excluded from Git
 src/main/resources/db/migration/V2__*.sql
+src/main/resources/db/migration/V3__*.sql
 # Add more V* patterns as needed for future migrations
 
 # Password hash generator and utility files

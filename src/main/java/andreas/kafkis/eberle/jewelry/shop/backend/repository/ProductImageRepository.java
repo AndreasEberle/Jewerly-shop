@@ -5,14 +5,17 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
 
 import andreas.kafkis.eberle.jewelry.shop.backend.entities.Product;
 import andreas.kafkis.eberle.jewelry.shop.backend.entities.ProductImage;
 
+@Repository
 public interface ProductImageRepository extends JpaRepository<ProductImage, UUID> {
     List<ProductImage> findByProductIdOrderByIsPrimaryDescSortOrderAsc(UUID productId);
     List<ProductImage> findByProductOrderBySortOrder(Product product);
     Optional<ProductImage> findByProductAndIsPrimaryTrue(Product product);
+    void deleteByProduct(Product product);
 }
 
 

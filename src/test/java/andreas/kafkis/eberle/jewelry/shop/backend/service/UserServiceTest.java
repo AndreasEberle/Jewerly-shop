@@ -75,7 +75,7 @@ class UserServiceTest {
     @Test
     void loadUserByUsername_WhenUserExists_ShouldReturnUserDetails() {
         // Given
-        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(testUser));
+        when(userRepository.findByEmail("test@example.com")).thenReturn(testUser);
 
         // When
         UserDetails userDetails = userService.loadUserByUsername("test@example.com");
@@ -91,7 +91,7 @@ class UserServiceTest {
     @Test
     void loadUserByUsername_WhenUserNotFound_ShouldThrowException() {
         // Given
-        when(userRepository.findByEmail("nonexistent@example.com")).thenReturn(Optional.empty());
+        when(userRepository.findByEmail("nonexistent@example.com")).thenReturn(null);
 
         // When & Then
         assertThatThrownBy(() -> userService.loadUserByUsername("nonexistent@example.com"))
@@ -108,16 +108,16 @@ class UserServiceTest {
         newUser.setLastName("Smith");
         newUser.setActive(true);
         
-        when(userRepository.findByEmail("newuser@example.com")).thenReturn(Optional.empty());
+        when(userRepository.findByEmail("newuser@example.com")).thenReturn(null);
         when(roleRepository.findByName("CUSTOMER")).thenReturn(Optional.of(customerRole));
         when(passwordEncoder.encode("password123")).thenReturn("encodedPassword");
         when(userRepository.save(any(User.class))).thenReturn(testUser);
 
         // When
-        User createdUser = userService.createUser(newUser, "password123");
+        Optional<User> createdUser = userService.createUser(newUser);
 
         // Then
-        assertThat(createdUser).isNotNull();
+        assertThat(createdUser).isPresent();
         verify(passwordEncoder).encode("password123");
         verify(userRepository).save(any(User.class));
         verify(emailService).sendWelcomeEmail(any(User.class));
@@ -128,10 +128,10 @@ class UserServiceTest {
         // Given
         User newUser = new User();
         newUser.setEmail("newuser@example.com");
-        when(userRepository.findByEmail("newuser@example.com")).thenReturn(Optional.of(testUser));
+        when(userRepository.findByEmail("newuser@example.com")).thenReturn(testUser);
 
         // When & Then
-        assertThatThrownBy(() -> userService.createUser(newUser, "password123"))
+        assertThatThrownBy(() -> userService.createUser(newUser))
                 .isInstanceOf(RuntimeException.class)
                 .hasMessage("User with email newuser@example.com already exists");
 
@@ -144,11 +144,11 @@ class UserServiceTest {
         // Given
         User newUser = new User();
         newUser.setEmail("newuser@example.com");
-        when(userRepository.findByEmail("newuser@example.com")).thenReturn(Optional.empty());
+        when(userRepository.findByEmail("newuser@example.com")).thenReturn(null);
         when(roleRepository.findByName("CUSTOMER")).thenReturn(Optional.empty());
 
         // When & Then
-        assertThatThrownBy(() -> userService.createUser(newUser, "password123"))
+        assertThatThrownBy(() -> userService.createUser(newUser))
                 .isInstanceOf(RuntimeException.class)
                 .hasMessage("Default role CUSTOMER not found");
 
@@ -163,30 +163,31 @@ class UserServiceTest {
         when(userRepository.findById(userId)).thenReturn(Optional.of(testUser));
 
         // When
-        User user = userService.findById(userId);
+        Optional<User> user = userService.findById(userId);
 
         // Then
-        assertThat(user).isNotNull();
-        assertThat(user.getId()).isEqualTo(userId);
-        assertThat(user.getEmail()).isEqualTo("test@example.com");
+        assertThat(user).isPresent();
+        assertThat(user.get().getId()).isEqualTo(userId);
+        assertThat(user.get().getEmail()).isEqualTo("test@example.com");
     }
 
     @Test
-    void findById_WhenUserNotFound_ShouldThrowException() {
+    void findById_WhenUserNotFound_ShouldReturnEmpty() {
         // Given
         UUID userId = UUID.randomUUID();
         when(userRepository.findById(userId)).thenReturn(Optional.empty());
 
-        // When & Then
-        assertThatThrownBy(() -> userService.findById(userId))
-                .isInstanceOf(RuntimeException.class)
-                .hasMessage("User not found with id: " + userId);
+        // When
+        Optional<User> user = userService.findById(userId);
+
+        // Then
+        assertThat(user).isEmpty();
     }
 
     @Test
     void findByEmail_WhenUserExists_ShouldReturnUser() {
         // Given
-        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(testUser));
+        when(userRepository.findByEmail("test@example.com")).thenReturn(testUser);
 
         // When
         User user = userService.findByEmail("test@example.com");
@@ -197,14 +198,15 @@ class UserServiceTest {
     }
 
     @Test
-    void findByEmail_WhenUserNotFound_ShouldThrowException() {
+    void findByEmail_WhenUserNotFound_ShouldReturnNull() {
         // Given
-        when(userRepository.findByEmail("nonexistent@example.com")).thenReturn(Optional.empty());
+        when(userRepository.findByEmail("nonexistent@example.com")).thenReturn(null);
 
-        // When & Then
-        assertThatThrownBy(() -> userService.findByEmail("nonexistent@example.com"))
-                .isInstanceOf(UsernameNotFoundException.class)
-                .hasMessage("User not found with email: nonexistent@example.com");
+        // When
+        User user = userService.findByEmail("nonexistent@example.com");
+
+        // Then
+        assertThat(user).isNull();
     }
 
     @Test
@@ -216,39 +218,10 @@ class UserServiceTest {
         when(userRepository.save(any(User.class))).thenReturn(testUser);
 
         // When
-        User updatedUser = userService.updateUser(testUser.getId(), userUpdates);
+        Optional<User> updatedUser = userService.updateUser(testUser.getId(), userUpdates);
 
         // Then
         assertThat(updatedUser).isNotNull();
-        verify(userRepository).save(testUser);
-    }
-
-    @Test
-    void setUserActive_WhenValidId_ShouldUpdateUser() {
-        // Given
-        UUID userId = testUser.getId();
-        when(userRepository.findById(userId)).thenReturn(Optional.of(testUser));
-        when(userRepository.save(any(User.class))).thenReturn(testUser);
-
-        // When
-        userService.setUserActive(userId, false);
-
-        // Then
-        verify(userRepository).save(testUser);
-    }
-
-    @Test
-    void addRoleToUser_WhenValidRole_ShouldAddRole() {
-        // Given
-        UUID userId = testUser.getId();
-        when(userRepository.findById(userId)).thenReturn(Optional.of(testUser));
-        when(roleRepository.findByName("ADMIN")).thenReturn(Optional.of(customerRole));
-        when(userRepository.save(any(User.class))).thenReturn(testUser);
-
-        // When
-        userService.addRoleToUser(userId, "ADMIN");
-
-        // Then
         verify(userRepository).save(testUser);
     }
 
@@ -276,5 +249,107 @@ class UserServiceTest {
 
         // Then
         assertThat(hasRole).isFalse();
+    }
+
+    @Test
+    void setUserActive_WhenValidId_ShouldUpdateUser() {
+        // Given
+        UUID userId = testUser.getId();
+        when(userRepository.findById(userId)).thenReturn(Optional.of(testUser));
+        when(userRepository.save(any(User.class))).thenReturn(testUser);
+
+        // When
+        userService.setUserActive(userId, false);
+
+        // Then
+        verify(userRepository).save(testUser);
+        assertThat(testUser.isActive()).isFalse();
+    }
+
+    @Test
+    void addRoleToUser_WhenValidRole_ShouldAddRole() {
+        // Given
+        UUID userId = testUser.getId();
+        Role adminRole = new Role();
+        adminRole.setName("ADMIN");
+        
+        when(userRepository.findById(userId)).thenReturn(Optional.of(testUser));
+        when(roleRepository.findByName("ADMIN")).thenReturn(Optional.of(adminRole));
+        when(userRepository.save(any(User.class))).thenReturn(testUser);
+
+        // When
+        userService.addRoleToUser(userId, "ADMIN");
+
+        // Then
+        verify(userRepository).save(testUser);
+        assertThat(testUser.getRoles()).contains(adminRole);
+    }
+
+    @Test
+    void removeRoleFromUser_WhenValidRole_ShouldRemoveRole() {
+        // Given
+        UUID userId = testUser.getId();
+        Role adminRole = new Role();
+        adminRole.setName("ADMIN");
+        testUser.getRoles().add(adminRole);
+        
+        when(userRepository.findById(userId)).thenReturn(Optional.of(testUser));
+        when(userRepository.save(any(User.class))).thenReturn(testUser);
+
+        // When
+        userService.removeRoleFromUser(userId, "ADMIN");
+
+        // Then
+        verify(userRepository).save(testUser);
+        assertThat(testUser.getRoles()).doesNotContain(adminRole);
+    }
+
+    @Test
+    void setUserActive_WhenUserNotFound_ShouldThrowException() {
+        // Given
+        UUID userId = UUID.randomUUID();
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+
+        // When & Then
+        assertThatThrownBy(() -> userService.setUserActive(userId, false))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage("User not found with id: " + userId);
+    }
+
+    @Test
+    void addRoleToUser_WhenUserNotFound_ShouldThrowException() {
+        // Given
+        UUID userId = UUID.randomUUID();
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+
+        // When & Then
+        assertThatThrownBy(() -> userService.addRoleToUser(userId, "ADMIN"))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage("User not found with id: " + userId);
+    }
+
+    @Test
+    void addRoleToUser_WhenRoleNotFound_ShouldThrowException() {
+        // Given
+        UUID userId = testUser.getId();
+        when(userRepository.findById(userId)).thenReturn(Optional.of(testUser));
+        when(roleRepository.findByName("ADMIN")).thenReturn(Optional.empty());
+
+        // When & Then
+        assertThatThrownBy(() -> userService.addRoleToUser(userId, "ADMIN"))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage("Role not found: ADMIN");
+    }
+
+    @Test
+    void hasRole_WhenUserNotFound_ShouldThrowException() {
+        // Given
+        UUID userId = UUID.randomUUID();
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+
+        // When & Then
+        assertThatThrownBy(() -> userService.hasRole(userId, "CUSTOMER"))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage("User not found with id: " + userId);
     }
 }

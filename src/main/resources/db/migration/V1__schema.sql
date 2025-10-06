@@ -31,7 +31,7 @@ DROP TYPE IF EXISTS order_status CASCADE;
 DROP TYPE IF EXISTS payment_status CASCADE;
 
 -- Create custom types
-CREATE TYPE order_status AS ENUM ('CREATED', 'PAID', 'SHIPPED', 'DELIVERED', 'CANCELLED');
+CREATE TYPE order_status AS ENUM ('PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED', 'REFUNDED');
 CREATE TYPE payment_status AS ENUM ('PENDING', 'COMPLETED', 'FAILED', 'REFUNDED');
 
 -- Users and roles
@@ -175,7 +175,7 @@ CREATE TABLE cart_items (
 CREATE TABLE orders (
     id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id             UUID REFERENCES users(id) ON DELETE SET NULL,
-    status              order_status NOT NULL DEFAULT 'CREATED',
+    status              order_status NOT NULL DEFAULT 'PENDING',
     shipping_address_id UUID REFERENCES addresses(id),
     billing_address_id  UUID REFERENCES addresses(id),
     total_cents         BIGINT NOT NULL,

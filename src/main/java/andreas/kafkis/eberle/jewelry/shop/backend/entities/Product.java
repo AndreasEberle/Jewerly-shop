@@ -62,6 +62,9 @@ public class Product {
     @Column(name = "weight_grams", precision = 10, scale = 3)
     private java.math.BigDecimal weightGrams;
 
+    @Column(name = "quantity", nullable = false)
+    private Integer quantity = 0;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;

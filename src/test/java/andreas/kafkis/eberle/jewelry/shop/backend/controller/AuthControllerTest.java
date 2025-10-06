@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -90,7 +91,7 @@ class AuthControllerTest {
                 .password("Password123")
                 .build();
 
-        when(userService.createUser(any(User.class), anyString())).thenReturn(testUser);
+        when(userService.createUser(any(User.class))).thenReturn(Optional.of(testUser));
         when(userService.loadUserByUsername(anyString())).thenReturn(
                 org.springframework.security.core.userdetails.User.builder()
                         .username(testUser.getEmail())

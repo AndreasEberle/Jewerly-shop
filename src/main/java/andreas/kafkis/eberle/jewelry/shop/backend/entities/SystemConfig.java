@@ -29,7 +29,7 @@ public class SystemConfig {
     @Column(columnDefinition = "uuid")
     private UUID id;
 
-    @Column(name = "config_key", nullable = false, unique = true, length = 100)
+    @Column(name = "config_key", nullable = false, length = 100)
     private String configKey;
 
     @Column(name = "config_value", columnDefinition = "TEXT")
@@ -37,6 +37,9 @@ public class SystemConfig {
 
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
+
+    @Column(name = "is_active", nullable = false)
+    private Boolean isActive = false;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

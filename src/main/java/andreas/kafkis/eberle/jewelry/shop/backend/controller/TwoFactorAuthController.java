@@ -4,6 +4,7 @@ import java.util.Map;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -34,6 +35,9 @@ public class TwoFactorAuthController {
     public ResponseEntity<Map<String, Object>> setupTwoFactor(Authentication authentication) {
         String email = authentication.getName();
         User user = userService.findByEmail(email);
+        		if (user == null) {
+        		    throw new UsernameNotFoundException("User not found with email: " + email);
+        		}
         
         if (user.isTotpEnabled()) {
             return ResponseEntity.badRequest()
@@ -64,6 +68,9 @@ public class TwoFactorAuthController {
         
         String email = authentication.getName();
         User user = userService.findByEmail(email);
+        		if (user == null) {
+        		    throw new UsernameNotFoundException("User not found with email: " + email);
+        		}
 
         if (user.isTotpEnabled()) {
             return ResponseEntity.badRequest()
@@ -97,6 +104,9 @@ public class TwoFactorAuthController {
         
         String email = authentication.getName();
         User user = userService.findByEmail(email);
+        		if (user == null) {
+        		    throw new UsernameNotFoundException("User not found with email: " + email);
+        		}
 
         if (!user.isTotpEnabled()) {
             return ResponseEntity.badRequest()
@@ -127,6 +137,9 @@ public class TwoFactorAuthController {
     public ResponseEntity<Map<String, Object>> getTwoFactorStatus(Authentication authentication) {
         String email = authentication.getName();
         User user = userService.findByEmail(email);
+        		if (user == null) {
+        		    throw new UsernameNotFoundException("User not found with email: " + email);
+        		}
         
         boolean enabled = twoFactorAuthService.isTwoFactorEnabled(user.getTotpSecret(), user.isTotpEnabled());
         

@@ -14,6 +14,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import andreas.kafkis.eberle.jewelry.shop.backend.dto.ErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
@@ -196,6 +197,24 @@ public class GlobalExceptionHandler {
     /**
      * Handle all other exceptions
      */
+    /**
+     * Handle file upload size exceeded errors
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponse> handleMaxUploadSizeExceededException(
+            MaxUploadSizeExceededException ex,
+            HttpServletRequest request
+    ) {
+        log.warn("File upload size exceeded: " + ex.getMessage());
+        
+        ErrorResponse errorResponse = ErrorResponse.badRequest(
+                "The uploaded file exceeds the maximum allowed size of 50MB. Please choose a smaller file.",
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGenericException(
             Exception ex,

@@ -3,7 +3,9 @@ package andreas.kafkis.eberle.jewelry.shop.backend.service;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -12,10 +14,20 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import andreas.kafkis.eberle.jewelry.shop.backend.dto.CreateProductRequest;
+import andreas.kafkis.eberle.jewelry.shop.backend.dto.ProductDTO;
+import andreas.kafkis.eberle.jewelry.shop.backend.dto.ProductImageDTO;
+import andreas.kafkis.eberle.jewelry.shop.backend.dto.UpdateProductRequest;
+import andreas.kafkis.eberle.jewelry.shop.backend.entities.Category;
 import andreas.kafkis.eberle.jewelry.shop.backend.entities.Product;
+import andreas.kafkis.eberle.jewelry.shop.backend.entities.ProductImage;
+import andreas.kafkis.eberle.jewelry.shop.backend.entities.Tag;
 import andreas.kafkis.eberle.jewelry.shop.backend.exception.ResourceNotFoundException;
+import andreas.kafkis.eberle.jewelry.shop.backend.repository.CategoryRepository;
 import andreas.kafkis.eberle.jewelry.shop.backend.repository.InventoryRepository;
+import andreas.kafkis.eberle.jewelry.shop.backend.repository.ProductImageRepository;
 import andreas.kafkis.eberle.jewelry.shop.backend.repository.ProductRepository;
+import andreas.kafkis.eberle.jewelry.shop.backend.repository.TagRepository;
 import jakarta.persistence.criteria.Predicate;
 
 @Service
@@ -27,6 +39,15 @@ public class ProductService {
 
     @Autowired
     private InventoryRepository inventoryRepository;
+    
+    @Autowired
+    private ProductImageRepository productImageRepository;
+    
+    @Autowired
+    private CategoryRepository categoryRepository;
+    
+    @Autowired
+    private TagRepository tagRepository;
 
     public Product create(Product product) {
         return productRepository.save(product);
@@ -211,6 +232,264 @@ public class ProductService {
      */
     public boolean isProductNameUnique(String name) {
         return isProductNameUnique(name, null);
+    }
+    
+    /**
+     * Generate SKU from product name
+     */
+    public String generateSku(String productName) {
+        // Convert to uppercase, replace spaces and special chars with hyphens
+        String baseSku = productName.toUpperCase()
+                .replaceAll("[^A-Z0-9\\s]", "")
+                .replaceAll("\\s+", "-");
+        
+        // Find the next available number
+        int counter = 1;
+        String sku = baseSku + "-" + String.format("%03d", counter);
+        
+        while (productRepository.findBySku(sku).isPresent()) {
+            counter++;
+            sku = baseSku + "-" + String.format("%03d", counter);
+        }
+        
+        return sku;
+    }
+    
+    /**
+     * Create a new product with all relationships
+     */
+    public ProductDTO createProduct(CreateProductRequest request) {
+        // Validate unique name
+        if (productRepository.findByName(request.getName()).isPresent()) {
+            throw new IllegalArgumentException("Product name already exists: " + request.getName());
+        }
+        
+        // Validate unique SKU
+        if (productRepository.findBySku(request.getSku()).isPresent()) {
+            throw new IllegalArgumentException("Product SKU already exists: " + request.getSku());
+        }
+        
+        // Create the product entity
+        Product product = Product.builder()
+                .name(request.getName())
+                .sku(request.getSku())
+                .description(request.getDescription())
+                .priceCents(request.getPrice().multiply(BigDecimal.valueOf(100)).longValue())
+                .baseCurrency(request.getBaseCurrency())
+                .material(request.getMaterial())
+                .gemstone(request.getGemstone())
+                .weightGrams(request.getWeightGrams())
+                .quantity(request.getQuantity())
+                .active(request.isActive())
+                .build();
+        
+        // Handle categories
+        if (request.getCategories() != null && !request.getCategories().isEmpty()) {
+            Set<Category> categories = request.getCategories().stream()
+                    .map(this::findOrCreateCategory)
+                    .collect(Collectors.toSet());
+            product.setCategories(categories);
+        }
+        
+        // Handle tags
+        if (request.getTags() != null && !request.getTags().isEmpty()) {
+            Set<Tag> tags = request.getTags().stream()
+                    .map(this::findOrCreateTag)
+                    .collect(Collectors.toSet());
+            product.setTags(tags);
+        }
+        
+        Product savedProduct = productRepository.save(product);
+        return convertToDTO(savedProduct);
+    }
+    
+    /**
+     * Update an existing product
+     */
+    public ProductDTO updateProduct(UUID productId, UpdateProductRequest request) {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + productId));
+        
+        // Update basic fields
+        if (request.getName() != null) {
+            product.setName(request.getName());
+        }
+        if (request.getSku() != null) {
+            product.setSku(request.getSku());
+        }
+        if (request.getDescription() != null) {
+            product.setDescription(request.getDescription());
+        }
+        if (request.getPrice() != null) {
+            product.setPriceCents(request.getPrice().multiply(BigDecimal.valueOf(100)).longValue());
+        }
+        if (request.getBaseCurrency() != null) {
+            product.setBaseCurrency(request.getBaseCurrency());
+        }
+        if (request.getMaterial() != null) {
+            product.setMaterial(request.getMaterial());
+        }
+        if (request.getGemstone() != null) {
+            product.setGemstone(request.getGemstone());
+        }
+        if (request.getWeightGrams() != null) {
+            product.setWeightGrams(request.getWeightGrams());
+        }
+        if (request.getQuantity() != null) {
+            product.setQuantity(request.getQuantity());
+        }
+        if (request.getActive() != null) {
+            product.setActive(request.getActive());
+        }
+        
+        // Handle categories
+        if (request.getCategories() != null) {
+            Set<Category> categories = request.getCategories().stream()
+                    .map(this::findOrCreateCategory)
+                    .collect(Collectors.toSet());
+            product.setCategories(categories);
+        }
+        
+        // Handle tags
+        if (request.getTags() != null) {
+            Set<Tag> tags = request.getTags().stream()
+                    .map(this::findOrCreateTag)
+                    .collect(Collectors.toSet());
+            product.setTags(tags);
+        }
+        
+        Product savedProduct = productRepository.save(product);
+        return convertToDTO(savedProduct);
+    }
+    
+    /**
+     * Get product by ID with all relationships
+     */
+    public ProductDTO getProductById(UUID productId) {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + productId));
+        return convertToDTO(product);
+    }
+    
+    /**
+     * Get all products as DTOs
+     */
+    public List<ProductDTO> getAllProducts() {
+        return productRepository.findAll().stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+    }
+    
+    /**
+     * Get active products for public display
+     */
+    public List<ProductDTO> getActiveProducts() {
+        return productRepository.findByActiveTrue().stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+    }
+    
+    /**
+     * Get featured products
+     */
+    public List<ProductDTO> getFeaturedProducts(int limit) {
+        return productRepository.findByActiveTrueOrderByCreatedAtDesc().stream()
+                .limit(limit)
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+    }
+    
+    /**
+     * Delete a product
+     */
+    public void deleteProduct(UUID productId) {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + productId));
+        
+        // Delete associated images first
+        productImageRepository.deleteByProduct(product);
+        
+        // Delete the product
+        productRepository.delete(product);
+    }
+    
+    /**
+     * Find or create a category by name
+     */
+    private Category findOrCreateCategory(String categoryName) {
+        return categoryRepository.findByName(categoryName)
+                .orElseGet(() -> {
+                    Category category = Category.builder()
+                            .name(categoryName)
+                            .slug(categoryName.toLowerCase().replaceAll("\\s+", "-"))
+                            .build();
+                    return categoryRepository.save(category);
+                });
+    }
+    
+    /**
+     * Find or create a tag by name
+     */
+    private Tag findOrCreateTag(String tagName) {
+        return tagRepository.findByName(tagName)
+                .orElseGet(() -> {
+                    Tag tag = Tag.builder()
+                            .name(tagName)
+                            .slug(tagName.toLowerCase().replaceAll("\\s+", "-"))
+                            .build();
+                    return tagRepository.save(tag);
+                });
+    }
+    
+    /**
+     * Convert Product entity to ProductDTO
+     */
+    private ProductDTO convertToDTO(Product product) {
+        // Load images for this product
+        List<ProductImage> images = productImageRepository.findByProductOrderBySortOrder(product);
+        
+        return ProductDTO.builder()
+                .id(product.getId())
+                .sku(product.getSku())
+                .name(product.getName())
+                .description(product.getDescription())
+                .price(product.getPrice())
+                .baseCurrency(product.getBaseCurrency())
+                .material(product.getMaterial())
+                .gemstone(product.getGemstone())
+                .weightGrams(product.getWeightGrams())
+                .quantity(product.getQuantity())
+                .active(product.isActive())
+                .createdAt(product.getCreatedAt())
+                .updatedAt(product.getUpdatedAt())
+                .categories(product.getCategories().stream()
+                        .map(Category::getName)
+                        .collect(Collectors.toSet()))
+                .tags(product.getTags().stream()
+                        .map(Tag::getName)
+                        .collect(Collectors.toSet()))
+                .images(images.stream()
+                        .map(this::convertImageToDTO)
+                        .collect(Collectors.toList()))
+                .build();
+    }
+    
+    /**
+     * Convert ProductImage entity to ProductImageDTO
+     */
+    private ProductImageDTO convertImageToDTO(ProductImage image) {
+        return ProductImageDTO.builder()
+                .id(image.getId())
+                .storageKey(image.getStorageKey())
+                .url(image.getUrl())
+                .isPrimary(image.isPrimary())
+                .sortOrder(image.getSortOrder())
+                .altText(image.getAltText())
+                .width(image.getWidth())
+                .height(image.getHeight())
+                .mimeType(image.getMimeType())
+                .createdAt(image.getCreatedAt())
+                .build();
     }
 }
 

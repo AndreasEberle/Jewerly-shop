@@ -35,7 +35,7 @@ import lombok.NoArgsConstructor;
 @Entity
 @Table(name = "orders")
 public class Order {
-    public enum OrderStatus { PENDING, CONFIRMED, SHIPPED, DELIVERED, CANCELLED, REFUNDED }
+    public enum OrderStatus { PENDING, CONFIRMED, PROCESSING, SHIPPED, DELIVERED, CANCELLED, REFUNDED }
 
     @Id
     @GeneratedValue

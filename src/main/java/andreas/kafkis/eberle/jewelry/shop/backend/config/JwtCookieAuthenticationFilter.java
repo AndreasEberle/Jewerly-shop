@@ -28,94 +28,41 @@ public class JwtCookieAuthenticationFilter extends OncePerRequestFilter {
     private final UserDetailsService userDetailsService;
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, 
-                                  FilterChain filterChain) throws ServletException, IOException {
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+            throws ServletException, IOException {
         
-        // Skip authentication for public endpoints
-        String requestURI = request.getRequestURI();
-        if (isPublicEndpoint(requestURI)) {
-            filterChain.doFilter(request, response);
-            return;
-        }
+        String jwt = getJwtFromCookie(request);
         
-        // Extract JWT token from HTTP-only cookie
-        String jwtToken = extractTokenFromCookie(request);
-        
-        if (jwtToken != null) {
+        if (jwt != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             try {
-                String userEmail = jwtService.extractUsername(jwtToken);
+                String username = jwtService.extractUsername(jwt);
                 
-                if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-                    UserDetails userDetails = userDetailsService.loadUserByUsername(userEmail);
+                if (username != null) {
+                    UserDetails userDetails = userDetailsService.loadUserByUsername(username);
                     
-                    if (jwtService.isTokenValid(jwtToken, userDetails)) {
+                    if (jwtService.isTokenValid(jwt, userDetails)) {
                         UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                            userDetails, null, userDetails.getAuthorities());
+                                userDetails, null, userDetails.getAuthorities());
                         authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                         SecurityContextHolder.getContext().setAuthentication(authToken);
-                        
-                        log.debug("JWT cookie authentication successful for user: {}", userEmail);
                     }
                 }
             } catch (Exception e) {
-                log.debug("JWT cookie authentication failed: {}", e.getMessage());
-                // Clear invalid cookie
-                clearJwtCookies(response);
+                log.error("Cannot set user authentication: {}", e.getMessage());
             }
         }
         
         filterChain.doFilter(request, response);
     }
-    
-    /**
-     * Extract JWT token from HTTP-only cookie
-     */
-    private String extractTokenFromCookie(HttpServletRequest request) {
-        Cookie[] cookies = request.getCookies();
-        if (cookies != null) {
-            for (Cookie cookie : cookies) {
-                if ("jwt_token".equals(cookie.getName())) {
+
+    private String getJwtFromCookie(HttpServletRequest request) {
+        if (request.getCookies() != null) {
+            for (Cookie cookie : request.getCookies()) {
+                if ("access_token".equals(cookie.getName())) {
                     return cookie.getValue();
                 }
             }
         }
         return null;
-    }
-    
-    /**
-     * Clear JWT cookies when token is invalid
-     */
-    private void clearJwtCookies(HttpServletResponse response) {
-        Cookie accessTokenCookie = new Cookie("jwt_token", null);
-        accessTokenCookie.setHttpOnly(true);
-        accessTokenCookie.setPath("/");
-        accessTokenCookie.setMaxAge(0);
-        response.addCookie(accessTokenCookie);
-        
-        Cookie refreshTokenCookie = new Cookie("jwt_refresh_token", null);
-        refreshTokenCookie.setHttpOnly(true);
-        refreshTokenCookie.setPath("/");
-        refreshTokenCookie.setMaxAge(0);
-        response.addCookie(refreshTokenCookie);
-    }
-    
-    /**
-     * Check if endpoint is public (doesn't require authentication)
-     */
-    private boolean isPublicEndpoint(String requestURI) {
-        return requestURI.startsWith("/api/auth/login") ||
-               requestURI.startsWith("/api/auth/register") ||
-               requestURI.startsWith("/api/auth/oauth2/") ||
-               requestURI.startsWith("/api/auth/verify-2fa") ||
-               requestURI.startsWith("/api/auth/session/") ||
-               requestURI.startsWith("/api/auth/jwt/") ||
-               requestURI.equals("/api/auth/me") ||  // Temporarily public for testing
-               // Removed /api/auth/debug/ from public endpoints so JWT filter processes it
-               requestURI.startsWith("/api/products") ||
-               requestURI.startsWith("/static/") ||
-               requestURI.startsWith("/oauth2/") ||
-               requestURI.startsWith("/login/oauth2/") ||
-               requestURI.equals("/error") ||
-               requestURI.equals("/favicon.ico");
     }
 }

@@ -7,10 +7,10 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import lombok.extern.slf4j.Slf4j;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.sync.RequestBody;
@@ -21,19 +21,12 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 @Service
+@Slf4j
 public class StorageService {
 
     @Autowired
     private SystemConfigService systemConfigService;
 
-    @Value("${storage.s3.access-key:}")
-    private String s3AccessKey;
-
-    @Value("${storage.s3.secret-key:}")
-    private String s3SecretKey;
-
-    @Value("${storage.s3.region:}")
-    private String s3Region;
 
     /**
      * Store file and return the storage key
@@ -44,6 +37,8 @@ public class StorageService {
         switch (storageType.toLowerCase()) {
             case "s3":
                 return storeFileS3(file, folder);
+            case "hybrid":
+                return storeFileHybrid(file, folder);
             case "local":
             default:
                 return storeFileLocal(file, folder);
@@ -67,6 +62,8 @@ public class StorageService {
         switch (storageType.toLowerCase()) {
             case "s3":
                 return getS3FileUrl(storageKey);
+            case "hybrid":
+                return getFileUrlHybrid(storageKey);
             case "local":
             default:
                 return getLocalFileUrl(storageKey);
@@ -210,14 +207,18 @@ public class StorageService {
      * Create S3 client with credentials
      */
     private S3Client createS3Client() {
-        if (s3AccessKey.isEmpty() || s3SecretKey.isEmpty()) {
+        String accessKey = systemConfigService.getS3AccessKey();
+        String secretKey = systemConfigService.getS3SecretKey();
+        String region = systemConfigService.getS3Region();
+        
+        if (accessKey.isEmpty() || secretKey.isEmpty()) {
             throw new IllegalStateException("S3 credentials not configured");
         }
 
-        AwsBasicCredentials awsCredentials = AwsBasicCredentials.create(s3AccessKey, s3SecretKey);
+        AwsBasicCredentials awsCredentials = AwsBasicCredentials.create(accessKey, secretKey);
         
         return S3Client.builder()
-                .region(Region.of(s3Region))
+                .region(Region.of(region))
                 .credentialsProvider(StaticCredentialsProvider.create(awsCredentials))
                 .build();
     }
@@ -268,8 +269,8 @@ public class StorageService {
     }
 
     /**
-     * Create human-readable folder name from product name and ID
-     * Example: "Classic Gold Ring (abc123)" -> "classic-gold-ring-abc123"
+     * Create human-readable folder name from product name
+     * Example: "Classic Gold Ring" -> "products/classic-gold-ring"
      */
     private String createHumanReadableFolder(String productName, String productId) {
         if (productName == null || productName.trim().isEmpty()) {
@@ -288,9 +289,49 @@ public class StorageService {
             cleanName = cleanName.substring(0, 50);
         }
         
-        // Add product ID for uniqueness
-        String shortId = productId.length() > 8 ? productId.substring(0, 8) : productId;
-        
-        return "products/" + cleanName + "-" + shortId;
+        return "products/" + cleanName;
+    }
+
+    /**
+     * Store file in both S3 and local storage (hybrid mode)
+     * Returns S3 key as primary, local key as backup
+     */
+    private String storeFileHybrid(MultipartFile file, String folder) throws IOException {
+        try {
+            // Try S3 first
+            String s3Key = storeFileS3(file, folder);
+            log.info("File stored in S3: {}", s3Key);
+            
+            // Also store locally as backup
+            try {
+                String localKey = storeFileLocal(file, folder);
+                log.info("File also stored locally as backup: {}", localKey);
+            } catch (Exception e) {
+                log.warn("Failed to store file locally as backup: {}", e.getMessage());
+                // Don't fail the whole operation if local backup fails
+            }
+            
+            return s3Key; // Return S3 key as primary
+        } catch (Exception e) {
+            log.warn("S3 storage failed, falling back to local: {}", e.getMessage());
+            // Fallback to local storage if S3 fails
+            return storeFileLocal(file, folder);
+        }
+    }
+
+    /**
+     * Get file URL with S3 primary, local fallback (hybrid mode)
+     */
+    private String getFileUrlHybrid(String storageKey) {
+        try {
+            // Try S3 first
+            String s3Url = getS3FileUrl(storageKey);
+            log.debug("Using S3 URL for key: {}", storageKey);
+            return s3Url;
+        } catch (Exception e) {
+            log.warn("S3 URL generation failed for key {}, falling back to local: {}", storageKey, e.getMessage());
+            // Fallback to local URL
+            return getLocalFileUrl(storageKey);
+        }
     }
 }

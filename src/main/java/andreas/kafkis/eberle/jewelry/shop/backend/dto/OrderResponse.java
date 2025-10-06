@@ -31,4 +31,54 @@ public class OrderResponse {
     private AddressInfo billingAddress;
     private List<OrderItemInfo> items;
     private PaymentInfo payment;
+    
+    @Data
+    @Builder
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class UserInfo {
+        private UUID id;
+        private String email;
+        private String firstName;
+        private String lastName;
+    }
+    
+    @Data
+    @Builder
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class AddressInfo {
+        private String street;
+        private String city;
+        private String state;
+        private String postalCode;
+        private String country;
+        private String apartment;
+    }
+    
+    @Data
+    @Builder
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class OrderItemInfo {
+        private UUID id;
+        private UUID productId;
+        private String productName;
+        private Integer quantity;
+        private BigDecimal unitPrice;
+        private BigDecimal totalPrice;
+    }
+    
+    @Data
+    @Builder
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class PaymentInfo {
+        private UUID id;
+        private String paymentMethod;
+        private String status;
+        private BigDecimal amount;
+        private String transactionId;
+        private LocalDateTime processedAt;
+    }
 }

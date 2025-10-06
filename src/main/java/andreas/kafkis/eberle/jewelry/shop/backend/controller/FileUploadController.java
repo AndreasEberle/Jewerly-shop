@@ -6,12 +6,15 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -33,7 +36,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @RestController
-@RequestMapping("/api/admin")
+@RequestMapping("/api")
 @Tag(name = "File Upload", description = "Admin file upload operations")
 @RequiredArgsConstructor
 @Slf4j
@@ -59,7 +62,7 @@ public class FileUploadController {
 
     private static final List<String> ALLOWED_EXTENSIONS = Arrays.asList("jpg", "jpeg", "png", "webp", "gif");
     private static final List<String> PREFERRED_EXTENSIONS = Arrays.asList("webp", "jpg", "jpeg"); // WebP preferred for better compression
-    private static final long MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+    private static final long MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
     @PostMapping("/upload/{productId}")
     @Operation(summary = "Upload file for a product (legacy local storage)")
@@ -133,7 +136,8 @@ public class FileUploadController {
         return filename.substring(lastDotIndex + 1);
     }
     
-    @PostMapping("/upload-product-image/{productId}")
+    @PostMapping("/admin/upload-product-image/{productId}")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Upload product image to S3 and create ProductImage record")
     public ResponseEntity<ProductImageUploadResponse> uploadProductImage(
             @PathVariable UUID productId,
@@ -332,6 +336,42 @@ public class FileUploadController {
             log.error("Error analyzing image: {}", e.getMessage(), e);
             return ResponseEntity.internalServerError()
                 .body(new ImageAnalysisResponse(false, "Analysis failed: " + e.getMessage(), null));
+        }
+    }
+    
+    @DeleteMapping("/product-images/{imageId}")
+    @Operation(summary = "Delete a product image")
+    public ResponseEntity<Map<String, Object>> deleteProductImage(@PathVariable UUID imageId) {
+        try {
+            // Find the image
+            ProductImage image = productImageRepository.findById(imageId)
+                    .orElseThrow(() -> new RuntimeException("Image not found with ID: " + imageId));
+            
+            // Delete from S3 or local storage
+            try {
+                storageService.deleteFile(image.getStorageKey());
+            } catch (Exception e) {
+                log.warn("Failed to delete file from storage: {}", e.getMessage());
+                // Continue with database deletion even if storage deletion fails
+            }
+            
+            // Delete from database
+            productImageRepository.delete(image);
+            
+            Map<String, Object> response = new java.util.HashMap<>();
+            response.put("success", true);
+            response.put("message", "Image deleted successfully");
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("Failed to delete product image: {}", e.getMessage(), e);
+            
+            Map<String, Object> response = new java.util.HashMap<>();
+            response.put("success", false);
+            response.put("message", "Failed to delete image: " + e.getMessage());
+            
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
         }
     }
     
