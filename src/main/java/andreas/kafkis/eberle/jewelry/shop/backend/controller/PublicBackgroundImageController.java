@@ -41,6 +41,19 @@ public class PublicBackgroundImageController {
     }
     
     @GetMapping("/section/{sectionName}")
+    @Operation(summary = "Get all background images for a specific section")
+    public ResponseEntity<List<BackgroundImage>> getBackgroundImagesForSection(@PathVariable String sectionName) {
+        try {
+            List<BackgroundImage> images = backgroundImageService.getBackgroundImagesForSection(sectionName);
+            log.info("Returning {} background images for section: {}", images.size(), sectionName);
+            return ResponseEntity.ok(images);
+        } catch (Exception e) {
+            log.error("Error getting background images for section {}: {}", sectionName, e.getMessage(), e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+    
+    @GetMapping("/section/{sectionName}/active")
     @Operation(summary = "Get active background image for a specific section")
     public ResponseEntity<BackgroundImage> getActiveBackgroundImageForSection(@PathVariable String sectionName) {
         try {
