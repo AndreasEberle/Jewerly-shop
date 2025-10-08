@@ -29,3 +29,5 @@ public interface SystemMetricsRepository extends JpaRepository<SystemMetrics, UU
            "GROUP BY sm.metricName")
     List<Object[]> findAverageMetricsSince(@Param("since") OffsetDateTime since);
 }
+
+

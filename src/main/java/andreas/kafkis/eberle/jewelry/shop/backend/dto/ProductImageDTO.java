@@ -24,3 +24,5 @@ public class ProductImageDTO {
     private String mimeType;
     private OffsetDateTime createdAt;
 }
+
+

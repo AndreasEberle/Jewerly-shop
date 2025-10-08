@@ -99,3 +99,5 @@ INSERT INTO system_metrics (metric_name, metric_value, metric_unit, tags, create
 ('total_orders', 0, 'count', '{"type": "counter"}', NOW()),
 ('avg_page_load_time', 0, 'seconds', '{"type": "gauge"}', NOW()),
 ('active_sessions', 0, 'count', '{"type": "gauge"}', NOW());
+
+

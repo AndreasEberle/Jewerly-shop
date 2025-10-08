@@ -4,295 +4,147 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import andreas.kafkis.eberle.jewelry.shop.backend.entities.SystemConfig;
 import andreas.kafkis.eberle.jewelry.shop.backend.repository.SystemConfigRepository;
 
 @Service
 public class SystemConfigService {
-
+    
+    private static final Logger log = LoggerFactory.getLogger(SystemConfigService.class);
+    
     @Autowired
     private SystemConfigRepository systemConfigRepository;
-
-    @Transactional(readOnly = true)
+    
+    public String getConfigValue(String configKey) {
+        Optional<SystemConfig> config = systemConfigRepository.findByConfigKeyAndIsActiveTrue(configKey);
+        return config.map(SystemConfig::getConfigValue).orElse(null);
+    }
+    
+    public void setConfigValue(String configKey, String configValue, String description) {
+        Optional<SystemConfig> existingConfig = systemConfigRepository.findByConfigKeyAndIsActiveTrue(configKey);
+        
+        if (existingConfig.isPresent()) {
+            SystemConfig config = existingConfig.get();
+            config.setConfigValue(configValue);
+            config.setDescription(description);
+            systemConfigRepository.save(config);
+        } else {
+            SystemConfig newConfig = SystemConfig.builder()
+                    .configKey(configKey)
+                    .configValue(configValue)
+                    .description(description)
+                    .isActive(true) // Set as active by default
+                    .build();
+            systemConfigRepository.save(newConfig);
+        }
+    }
+    
+    
     public List<SystemConfig> getAllConfigs() {
         return systemConfigRepository.findAll();
     }
-
-    @Transactional(readOnly = true)
-    public Optional<SystemConfig> getConfig(String key) {
-        return systemConfigRepository.findByConfigKeyAndIsActiveTrue(key);
+    
+    public void deleteConfig(String configKey) {
+        // Find the active configuration with this key and delete it
+        Optional<SystemConfig> activeConfig = systemConfigRepository.findByConfigKeyAndIsActiveTrue(configKey);
+        activeConfig.ifPresent(systemConfigRepository::delete);
     }
     
-    @Transactional(readOnly = true)
-    public List<SystemConfig> getAllActiveConfigs() {
-        return systemConfigRepository.findAllByIsActiveTrue();
-    }
-    
-    @Transactional(readOnly = true)
-    public List<SystemConfig> getConfigOptions(String key) {
-        return systemConfigRepository.findAllByConfigKey(key);
-    }
-
-    /**
-     * Update configuration value
-     */
-    @Transactional
-    public SystemConfig updateConfigValue(String key, String value) {
-        SystemConfig config = systemConfigRepository.findByConfigKey(key)
-                .orElseThrow(() -> new IllegalArgumentException("System config key not found: " + key));
-        config.setConfigValue(value);
-        return systemConfigRepository.save(config);
-    }
-
-    /**
-     * Get configuration value as string
-     */
-    public String getConfigValue(String key) {
-        return systemConfigRepository.findByConfigKey(key)
-                .map(SystemConfig::getConfigValue)
-                .orElse(null);
-    }
-
-    /**
-     * Get configuration value as boolean
-     */
-    public boolean getBooleanConfig(String key, boolean defaultValue) {
-        String value = getConfigValue(key);
-        if (value == null) {
-            return defaultValue;
-        }
-        return "true".equalsIgnoreCase(value);
-    }
-
-
-    /**
-     * Set configuration value
-     */
-    public void setConfigValue(String key, String value) {
-        Optional<SystemConfig> existing = systemConfigRepository.findByConfigKey(key);
-        if (existing.isPresent()) {
-            SystemConfig config = existing.get();
-            config.setConfigValue(value);
-            systemConfigRepository.save(config);
-        } else {
-            SystemConfig config = new SystemConfig();
-            config.setConfigKey(key);
-            config.setConfigValue(value);
-            systemConfigRepository.save(config);
-        }
-    }
-
-    /**
-     * Set boolean configuration value
-     */
-    public void setBooleanConfig(String key, boolean value) {
-        setConfigValue(key, String.valueOf(value));
-    }
-
-    public boolean isMaintenanceMode() {
-        return getConfig("MAINTENANCE_MODE")
-                .map(config -> Boolean.parseBoolean(config.getConfigValue()))
-                .orElse(false); // Default to false if not configured
-    }
-
-    public void setMaintenanceMode(boolean enabled) {
-        updateConfigValue("MAINTENANCE_MODE", String.valueOf(enabled));
-    }
-
-
-    public String getPublicBaseUrl() {
-        return getConfig("PUBLIC_BASE_URL")
-                .map(SystemConfig::getConfigValue)
-                .orElseThrow(() -> new IllegalStateException("Public base URL not configured"));
-    }
-
-    public String getStorageType() {
-        return getConfig("STORAGE_TYPE")
-                .map(SystemConfig::getConfigValue)
-                .orElse("s3"); // Default to S3 storage
-    }
-
-    public void setStorageType(String storageType) {
-        // Validate storage type
-        if (!storageType.equalsIgnoreCase("local") && 
-            !storageType.equalsIgnoreCase("s3") && 
-            !storageType.equalsIgnoreCase("hybrid")) {
-            throw new IllegalArgumentException("Invalid storage type. Must be 'local', 's3', or 'hybrid'");
+    public SystemConfig activateConfig(UUID id) {
+        SystemConfig config = systemConfigRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Configuration not found with ID: " + id));
+        
+        // Get the config key and value from the selected configuration
+        String configKey = config.getConfigKey();
+        String configValue = config.getConfigValue();
+        
+        log.info("Activating config: ID={}, Key={}, Value={}", id, configKey, configValue);
+        
+        // Find all configurations with the same key
+        List<SystemConfig> allConfigsWithSameKey = systemConfigRepository.findAllByConfigKey(configKey);
+        log.info("Found {} configs with key: {}", allConfigsWithSameKey.size(), configKey);
+        
+        // Deactivate all configurations with the same key
+        for (SystemConfig sameKeyConfig : allConfigsWithSameKey) {
+            log.info("Deactivating config: ID={}, Key={}, Value={}, Active={}", 
+                    sameKeyConfig.getId(), sameKeyConfig.getConfigKey(), 
+                    sameKeyConfig.getConfigValue(), sameKeyConfig.isActive());
+            sameKeyConfig.setActive(false);
+            systemConfigRepository.save(sameKeyConfig);
         }
         
-        // Create or update the config
-        SystemConfig config = systemConfigRepository.findByConfigKey("STORAGE_TYPE")
-                .orElse(SystemConfig.builder()
-                        .configKey("STORAGE_TYPE")
-                        .configValue(storageType.toLowerCase())
-                        .description("Storage type: local, s3, or hybrid")
-                        .build());
-        config.setConfigValue(storageType.toLowerCase());
-        systemConfigRepository.save(config);
-    }
-
-    /**
-     * Get S3 bucket name from configuration
-     */
-    public String getS3BucketName() {
-        return getConfig("S3_BUCKET_NAME")
-                .map(SystemConfig::getConfigValue)
-                .orElseThrow(() -> new IllegalStateException("S3 bucket name not configured"));
-    }
-
-    /**
-     * Set S3 bucket name
-     */
-    public void setS3BucketName(String bucketName) {
-        SystemConfig config = systemConfigRepository.findByConfigKey("S3_BUCKET_NAME")
-                .orElse(SystemConfig.builder()
-                        .configKey("S3_BUCKET_NAME")
-                        .configValue(bucketName)
-                        .description("S3 bucket name for storing product images and files")
-                        .build());
-        config.setConfigValue(bucketName);
-        systemConfigRepository.save(config);
-    }
-
-    /**
-     * Get S3 region from configuration
-     */
-    public String getS3Region() {
-        return getConfig("S3_REGION")
-                .map(SystemConfig::getConfigValue)
-                .orElse("us-east-1"); // Default to us-east-1
-    }
-
-    /**
-     * Set S3 region
-     */
-    public void setS3Region(String region) {
-        SystemConfig config = systemConfigRepository.findByConfigKey("S3_REGION")
-                .orElse(SystemConfig.builder()
-                        .configKey("S3_REGION")
-                        .configValue(region)
-                        .description("AWS S3 region for bucket operations")
-                        .build());
-        config.setConfigValue(region);
-        systemConfigRepository.save(config);
-    }
-
-    /**
-     * Get local storage path from configuration
-     */
-    public String getLocalStoragePath() {
-        return getConfig("LOCAL_STORAGE_PATH")
-                .map(SystemConfig::getConfigValue)
-                .orElseThrow(() -> new IllegalStateException("Local storage path not configured"));
-    }
-
-    /**
-     * Set local storage path
-     */
-    public void setLocalStoragePath(String path) {
-        SystemConfig config = systemConfigRepository.findByConfigKey("LOCAL_STORAGE_PATH")
-                .orElse(SystemConfig.builder()
-                        .configKey("LOCAL_STORAGE_PATH")
-                        .configValue(path)
-                        .description("Local file system path for storing uploaded files")
-                        .build());
-        config.setConfigValue(path);
-        systemConfigRepository.save(config);
-    }
-
-    /**
-     * Get S3 access key from configuration
-     */
-    public String getS3AccessKey() {
-        return getConfig("S3_ACCESS_KEY")
-                .map(SystemConfig::getConfigValue)
-                .orElseThrow(() -> new IllegalStateException("S3 access key not configured"));
-    }
-
-    /**
-     * Set S3 access key
-     */
-    public void setS3AccessKey(String accessKey) {
-        SystemConfig config = systemConfigRepository.findByConfigKey("S3_ACCESS_KEY")
-                .orElse(SystemConfig.builder()
-                        .configKey("S3_ACCESS_KEY")
-                        .configValue(accessKey)
-                        .description("AWS S3 access key for authentication")
-                        .build());
-        config.setConfigValue(accessKey);
-        systemConfigRepository.save(config);
-    }
-
-    /**
-     * Get S3 secret key from configuration
-     */
-    public String getS3SecretKey() {
-        return getConfig("S3_SECRET_KEY")
-                .map(SystemConfig::getConfigValue)
-                .orElseThrow(() -> new IllegalStateException("S3 secret key not configured"));
-    }
-
-    /**
-     * Set S3 secret key
-     */
-    public void setS3SecretKey(String secretKey) {
-        SystemConfig config = systemConfigRepository.findByConfigKey("S3_SECRET_KEY")
-                .orElse(SystemConfig.builder()
-                        .configKey("S3_SECRET_KEY")
-                        .configValue(secretKey)
-                        .description("AWS S3 secret key for authentication")
-                        .build());
-        config.setConfigValue(secretKey);
-        systemConfigRepository.save(config);
-    }
-
-    /**
-     * Create a new configuration entry
-     */
-    @Transactional
-    public SystemConfig createConfig(String key, String value, String description) {
-        SystemConfig config = new SystemConfig();
-        config.setConfigKey(key);
-        config.setConfigValue(value);
-        config.setDescription(description);
-        config.setIsActive(false); // New entries are inactive by default
-        return systemConfigRepository.save(config);
+        // Activate the selected configuration
+        config.setActive(true);
+        SystemConfig savedConfig = systemConfigRepository.save(config);
+        log.info("Activated config: ID={}, Key={}, Value={}, Active={}", 
+                savedConfig.getId(), savedConfig.getConfigKey(), 
+                savedConfig.getConfigValue(), savedConfig.isActive());
+        
+        return savedConfig;
     }
     
-    /**
-     * Activate a specific configuration value by ID
-     */
-    @Transactional
-    public SystemConfig activateConfig(UUID configId) {
-        // First deactivate all configs with the same key
-        SystemConfig targetConfig = systemConfigRepository.findById(configId)
-                .orElseThrow(() -> new IllegalArgumentException("Configuration not found with ID: " + configId));
-        
-        systemConfigRepository.deactivateAllByConfigKey(targetConfig.getConfigKey());
-        
-        // Then activate the target config
-        systemConfigRepository.activateById(configId);
-        
-        return systemConfigRepository.findById(configId).orElse(targetConfig);
-    }
-    
-    /**
-     * Activate a configuration value by key and value
-     */
-    @Transactional
     public SystemConfig activateConfigValue(String key, String value) {
-        // Find the config with the specific key and value
-        SystemConfig targetConfig = systemConfigRepository.findAllByConfigKey(key)
-                .stream()
+        // Find the configuration with the specific key and value
+        List<SystemConfig> configs = systemConfigRepository.findAllByConfigKey(key);
+        Optional<SystemConfig> targetConfig = configs.stream()
                 .filter(config -> value.equals(config.getConfigValue()))
-                .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Configuration not found with key: " + key + " and value: " + value));
+                .findFirst();
         
-        return activateConfig(targetConfig.getId());
+        if (targetConfig.isPresent()) {
+            // Deactivate all other configs with the same key
+            configs.forEach(config -> {
+                if (!config.getId().equals(targetConfig.get().getId())) {
+                    config.setActive(false);
+                    systemConfigRepository.save(config);
+                }
+            });
+            
+            // Activate the target config
+            SystemConfig config = targetConfig.get();
+            config.setActive(true);
+            return systemConfigRepository.save(config);
+        } else {
+            throw new RuntimeException("Configuration not found with key: " + key + " and value: " + value);
+        }
     }
-
+    
+    // Storage-related configuration methods
+    public String getStorageType() {
+        return getConfigValue("STORAGE_TYPE", "s3");
+    }
+    
+    public String getLocalStoragePath() {
+        return getConfigValue("LOCAL_STORAGE_PATH", "uploads/products");
+    }
+    
+    public String getPublicBaseUrl() {
+        return getConfigValue("storage.public.base.url", "http://localhost:8080/uploads/");
+    }
+    
+    public String getS3BucketName() {
+        return getConfigValue("S3_BUCKET_NAME", "jewelry-shop-images");
+    }
+    
+    public String getS3Region() {
+        return getConfigValue("S3_REGION", "eu-north-1");
+    }
+    
+    public String getS3AccessKey() {
+        return getConfigValue("S3_ACCESS_KEY", "");
+    }
+    
+    public String getS3SecretKey() {
+        return getConfigValue("S3_SECRET_KEY", "");
+    }
+    
+    // Helper method to get config value with default
+    private String getConfigValue(String configKey, String defaultValue) {
+        String value = getConfigValue(configKey);
+        return value != null ? value : defaultValue;
+    }
 }

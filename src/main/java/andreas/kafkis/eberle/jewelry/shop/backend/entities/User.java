@@ -80,6 +80,41 @@ public class User {
     @Column(name = "oauth_only", nullable = false)
     private boolean oauthOnly = false;
 
+    @Column(name = "ldap_enabled", nullable = false)
+    private boolean ldapEnabled = false;
+
+    // Newsletter and marketing preferences
+    @Column(name = "newsletter_subscribed", nullable = false)
+    private boolean newsletterSubscribed = false;
+
+    @Column(name = "marketing_emails", nullable = false)
+    private boolean marketingEmails = false;
+
+    @Column(name = "sms_notifications", nullable = false)
+    private boolean smsNotifications = false;
+
+    // Additional user information
+    @Column(name = "preferred_language", length = 10)
+    private String preferredLanguage = "en";
+
+    @Column(name = "timezone", length = 50)
+    private String timezone;
+
+    @Column(name = "last_login_at")
+    private OffsetDateTime lastLoginAt;
+
+    @Column(name = "email_verified", nullable = false)
+    private boolean emailVerified = false;
+
+    @Column(name = "phone_verified", nullable = false)
+    private boolean phoneVerified = false;
+
+    @Column(name = "profile_completed", nullable = false)
+    private boolean profileCompleted = false;
+
+    @Column(name = "notes", columnDefinition = "TEXT")
+    private String notes;
+
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(name = "user_roles",
             joinColumns = @JoinColumn(name = "user_id"),

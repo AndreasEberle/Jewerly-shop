@@ -17,3 +17,5 @@ public class PasswordHashGenerator {
         System.out.println("password123 matches: " + encoder.matches("password123", password123Hash));
     }
 }
+
+

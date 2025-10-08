@@ -60,3 +60,5 @@ public class PasswordHashRunner implements CommandLineRunner {
         System.out.println("\n=== Password Hash Generator Complete ===");
     }
 }
+
+

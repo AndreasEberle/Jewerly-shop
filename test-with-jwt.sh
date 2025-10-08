@@ -25,3 +25,5 @@ curl -s -H "Authorization: Bearer $JWT_TOKEN" -o /dev/null -w "GET /api/admin/us
 curl -s -H "Authorization: Bearer $JWT_TOKEN" -o /dev/null -w "GET /swagger-ui.html: %{http_code}\n" "$BASE_URL/swagger-ui.html"
 
 echo "✅ JWT test complete!"
+
+

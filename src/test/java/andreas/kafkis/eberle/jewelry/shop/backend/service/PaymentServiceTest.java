@@ -74,7 +74,7 @@ class PaymentServiceTest {
         testPayment.setOrder(testOrder);
         testPayment.setPaymentMethod("CREDIT_CARD");
         testPayment.setAmount(BigDecimal.valueOf(5450.00));
-        testPayment.setStatus(Payment.PaymentStatus.SUCCESS);
+        testPayment.setStatus(Payment.PaymentStatus.PENDING);
         testPayment.setTransactionId("TXN-123456");
         testPayment.setProcessedAt(LocalDateTime.now());
         testPayment.setCreatedAt(LocalDateTime.now());

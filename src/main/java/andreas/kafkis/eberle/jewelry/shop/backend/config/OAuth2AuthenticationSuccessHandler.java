@@ -66,12 +66,32 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
                 return;
             }
             
-            // Handle successful login
-            String authResponseJson = objectMapper.writeValueAsString(authResponse);
-            String authResponseEncoded = URLEncoder.encode(authResponseJson, StandardCharsets.UTF_8);
+            // Set JWT tokens in HTTP-only cookies for OAuth2 users
+            jakarta.servlet.http.Cookie accessTokenCookie = new jakarta.servlet.http.Cookie("jwt_token", authResponse.getAccessToken());
+            accessTokenCookie.setHttpOnly(true);
+            accessTokenCookie.setSecure(false); // Set to true in production with HTTPS
+            accessTokenCookie.setPath("/");
+            accessTokenCookie.setMaxAge(86400); // 24 hours
+            response.addCookie(accessTokenCookie);
+            
+            if (authResponse.getRefreshToken() != null) {
+                jakarta.servlet.http.Cookie refreshTokenCookie = new jakarta.servlet.http.Cookie("jwt_refresh_token", authResponse.getRefreshToken());
+                refreshTokenCookie.setHttpOnly(true);
+                refreshTokenCookie.setSecure(false); // Set to true in production with HTTPS
+                refreshTokenCookie.setPath("/");
+                refreshTokenCookie.setMaxAge(604800); // 7 days
+                response.addCookie(refreshTokenCookie);
+            }
+            
+            // Handle successful login - send individual parameters that frontend expects
+            String userInfoJson = objectMapper.writeValueAsString(authResponse.getUser());
+            String userInfoEncoded = URLEncoder.encode(userInfoJson, StandardCharsets.UTF_8);
             
             String redirectUrl = UriComponentsBuilder.fromUriString(frontendUrl + "/auth/callback")
-                    .queryParam("data", authResponseEncoded)
+                    .queryParam("token", authResponse.getAccessToken())
+                    .queryParam("refreshToken", authResponse.getRefreshToken())
+                    .queryParam("user", userInfoEncoded)
+                    .queryParam("isAdmin", authResponse.getUser().getRoles().contains("ADMIN") ? "true" : "false")
                     .build()
                     .toUriString();
             getRedirectStrategy().sendRedirect(request, response, redirectUrl);
@@ -86,3 +106,5 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
         }
     }
 }
+
+

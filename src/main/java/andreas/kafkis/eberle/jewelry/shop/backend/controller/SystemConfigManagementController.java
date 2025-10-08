@@ -61,6 +61,28 @@ public class SystemConfigManagementController {
         }
     }
     
+    @GetMapping("/list")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Get all system configurations as a simple list")
+    public ResponseEntity<List<SystemConfig>> getAllConfigsList() {
+        try {
+            List<SystemConfig> configs = systemConfigRepository.findAll();
+            
+            // Debug logging for specific configs
+            log.info("=== DEBUGGING CONFIG LIST ===");
+            configs.stream()
+                .filter(c -> c.getConfigKey().equals("S3_REGION") || c.getConfigKey().equals("STORAGE_TYPE"))
+                .forEach(c -> log.info("Config: Key={}, Value={}, Active={}", c.getConfigKey(), c.getConfigValue(), c.isActive()));
+            log.info("=============================");
+            
+            return ResponseEntity.ok(configs);
+            
+        } catch (Exception e) {
+            log.error("Error getting system configurations list: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+    
     @GetMapping("/options/{configKey}")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Get configuration options for a specific key")

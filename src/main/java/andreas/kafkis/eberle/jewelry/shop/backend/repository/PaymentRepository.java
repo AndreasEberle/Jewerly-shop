@@ -14,15 +14,16 @@ import andreas.kafkis.eberle.jewelry.shop.backend.entities.Payment;
 
 public interface PaymentRepository extends JpaRepository<Payment, UUID>, JpaSpecificationExecutor<Payment> {
     
-    long countByStatus(Payment.PaymentStatus status);
+    @Query(value = "SELECT COUNT(p.id) FROM payments p WHERE p.status = CAST(:status AS payment_status)", nativeQuery = true)
+    long countByStatus(@Param("status") String status);
     
     long countByCreatedAtAfter(LocalDateTime date);
     
-    @Query("SELECT SUM(p.amount) FROM Payment p WHERE p.status = :status")
-    BigDecimal sumAmountByStatus(@Param("status") Payment.PaymentStatus status);
+    @Query(value = "SELECT SUM(p.amount) FROM payments p WHERE p.status = CAST(:status AS payment_status)", nativeQuery = true)
+    BigDecimal sumAmountByStatus(@Param("status") String status);
     
-    @Query("SELECT AVG(p.amount) FROM Payment p WHERE p.status = :status")
-    BigDecimal avgAmountByStatus(@Param("status") Payment.PaymentStatus status);
+    @Query(value = "SELECT AVG(p.amount) FROM payments p WHERE p.status = CAST(:status AS payment_status)", nativeQuery = true)
+    BigDecimal avgAmountByStatus(@Param("status") String status);
     
     @Query("SELECT p.paymentMethod, COUNT(p) FROM Payment p GROUP BY p.paymentMethod")
     Map<String, Long> countByPaymentMethod();

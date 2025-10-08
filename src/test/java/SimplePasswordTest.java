@@ -20,3 +20,5 @@ public class SimplePasswordTest {
         System.out.println("Current test hash matches 'password': " + encoder.matches("password", currentTestHash));
     }
 }
+
+

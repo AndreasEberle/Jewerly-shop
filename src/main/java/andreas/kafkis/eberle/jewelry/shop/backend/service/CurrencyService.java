@@ -64,8 +64,7 @@ public class CurrencyService {
             userPreferencesRepository.save(existing.get());
         } else {
             UserPreferences preferences = UserPreferences.builder()
-                    .userId(userId)  // Set userId directly
-                    .user(User.builder().id(userId).build())
+                    .userId(userId)
                     .preferredCurrency(currency)
                     .preferredLanguage("de-DE")  // Set default language
                     .build();

@@ -48,3 +48,5 @@ public class SystemMetrics {
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
 }
+
+

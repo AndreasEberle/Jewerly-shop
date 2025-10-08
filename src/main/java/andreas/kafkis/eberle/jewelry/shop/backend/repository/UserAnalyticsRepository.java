@@ -32,3 +32,5 @@ public interface UserAnalyticsRepository extends JpaRepository<UserAnalytics, UU
     @Query("SELECT COUNT(ua) FROM UserAnalytics ua WHERE ua.eventType = :eventType AND ua.createdAt >= :since")
     Long countEventsByTypeSince(@Param("eventType") String eventType, @Param("since") OffsetDateTime since);
 }
+
+

@@ -44,6 +44,15 @@ public class ProductImage {
     @Column(length = 1024)
     private String url;
 
+    @Column(name = "local_url", length = 1024)
+    private String localUrl;
+
+    @Column(name = "s3_url", length = 1024)
+    private String s3Url;
+
+    @Column(name = "storage_type", length = 20)
+    private String storageType = "local";
+
     @Column(name = "is_primary", nullable = false)
     private boolean isPrimary;
 

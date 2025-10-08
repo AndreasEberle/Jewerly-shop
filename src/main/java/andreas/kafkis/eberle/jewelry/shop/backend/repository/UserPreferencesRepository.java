@@ -12,4 +12,6 @@ import andreas.kafkis.eberle.jewelry.shop.backend.entities.UserPreferences;
 public interface UserPreferencesRepository extends JpaRepository<UserPreferences, UUID> {
     
     Optional<UserPreferences> findByUserId(UUID userId);
+    
+    boolean existsByUserId(UUID userId);
 }

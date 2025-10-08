@@ -103,7 +103,7 @@ public class OrderService {
         // Orders by status
         Map<String, Long> ordersByStatus = new HashMap<>();
         for (Order.OrderStatus status : Order.OrderStatus.values()) {
-            long count = orderRepository.countByStatus(status);
+            long count = orderRepository.countByStatus(status.name());
             ordersByStatus.put(status.name(), count);
         }
         stats.put("ordersByStatus", ordersByStatus);

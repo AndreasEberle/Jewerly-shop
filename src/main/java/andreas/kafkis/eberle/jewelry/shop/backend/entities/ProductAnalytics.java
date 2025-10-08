@@ -59,3 +59,5 @@ public class ProductAnalytics {
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
 }
+
+

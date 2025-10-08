@@ -29,3 +29,5 @@ echo "Expected results:"
 echo "- Public endpoints: 200"
 echo "- Authenticated endpoints: 401 (without auth)"
 echo "- Admin endpoints: 401 (without auth)"
+
+

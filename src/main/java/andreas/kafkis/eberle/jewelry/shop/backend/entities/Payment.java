@@ -29,7 +29,7 @@ import lombok.NoArgsConstructor;
 @Entity
 @Table(name = "payments")
 public class Payment {
-    public enum PaymentStatus { PENDING, SUCCESS, FAILED, REFUNDED }
+    public enum PaymentStatus { PENDING, COMPLETED, FAILED, REFUNDED }
 
     @Id
     @GeneratedValue

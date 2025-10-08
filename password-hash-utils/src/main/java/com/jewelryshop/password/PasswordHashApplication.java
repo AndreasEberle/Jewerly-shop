@@ -25,3 +25,5 @@ public class PasswordHashApplication {
         return new BCryptPasswordEncoder();
     }
 }
+
+

@@ -38,3 +38,5 @@ public interface ProductAnalyticsRepository extends JpaRepository<ProductAnalyti
            "ORDER BY viewCount DESC")
     List<Object[]> findProductViewsByCountrySince(@Param("since") OffsetDateTime since);
 }
+
+

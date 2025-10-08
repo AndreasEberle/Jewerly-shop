@@ -158,7 +158,7 @@ public class VisibleS3Test {
         System.out.println("\n📤 STEP 2: LOCAL UPLOAD + DOWNLOAD TO 'products-test'");
         
         // Switch to local storage
-        systemConfigService.updateConfigValue("USE_S3_STORAGE", "false");
+        systemConfigService.setConfigValue("storage.type", "local", "Storage type");
         
         // Upload to local storage (but don't create uploads folders)
         String localKey = storageService.storeFile(testFile, "local-test");
@@ -180,38 +180,19 @@ public class VisibleS3Test {
     
     private void setupS3Config() {
         // Set storage type to S3 in the database for the StorageService
-        try {
-            systemConfigService.updateConfigValue("USE_S3_STORAGE", "true");
-        } catch (Exception e) {
-            systemConfigService.createConfig("USE_S3_STORAGE", "true", "Use S3 storage instead of local storage");
-        }
+        systemConfigService.setConfigValue("storage.type", "s3", "Storage type");
         
         // Set S3 configuration in the database for the StorageService
-        try {
-            systemConfigService.updateConfigValue("S3_BUCKET_NAME", s3BucketName);
-        } catch (Exception e) {
-            systemConfigService.createConfig("S3_BUCKET_NAME", s3BucketName, "S3 bucket name");
-        }
-        
-        try {
-            systemConfigService.updateConfigValue("S3_REGION", s3Region);
-        } catch (Exception e) {
-            systemConfigService.createConfig("S3_REGION", s3Region, "S3 region");
-        }
+        systemConfigService.setConfigValue("storage.s3.bucket.name", s3BucketName, "S3 bucket name");
+        systemConfigService.setConfigValue("storage.s3.region", s3Region, "S3 region");
+        systemConfigService.setConfigValue("storage.s3.access.key", s3AccessKey, "S3 access key");
+        systemConfigService.setConfigValue("storage.s3.secret.key", s3SecretKey, "S3 secret key");
         
         // Set local storage path for when we switch to local storage
-        try {
-            systemConfigService.updateConfigValue("LOCAL_STORAGE_PATH", "uploads/");
-        } catch (Exception e) {
-            systemConfigService.createConfig("LOCAL_STORAGE_PATH", "uploads/", "Local storage path");
-        }
+        systemConfigService.setConfigValue("storage.local.path", "uploads/", "Local storage path");
         
         // Set public base URL for local storage
-        try {
-            systemConfigService.updateConfigValue("PUBLIC_BASE_URL", "http://localhost:8080/");
-        } catch (Exception e) {
-            systemConfigService.createConfig("PUBLIC_BASE_URL", "http://localhost:8080/", "Public base URL");
-        }
+        systemConfigService.setConfigValue("storage.public.base.url", "http://localhost:8080/", "Public base URL");
     }
     
     private void downloadS3ToTestResources(String s3Key, String originalFileName) throws IOException {
@@ -241,7 +222,10 @@ public class VisibleS3Test {
                     .key(s3Key)
                     .build();
             
-            s3Client.getObject(getObjectRequest, downloadedFile);
+            // Download the object to local file
+            try (var response = s3Client.getObject(getObjectRequest)) {
+                Files.copy(response, downloadedFile, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            }
             
             System.out.println("✅ S3 Download Result:");
             System.out.println("   Downloaded to: " + downloadedFile.toAbsolutePath());

@@ -5,11 +5,17 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import andreas.kafkis.eberle.jewelry.shop.backend.dto.ProductImageStorageResult;
 import lombok.extern.slf4j.Slf4j;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
@@ -18,7 +24,10 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Object;
 
 @Service
 @Slf4j
@@ -33,14 +42,18 @@ public class StorageService {
      */
     public String storeFile(MultipartFile file, String folder) throws IOException {
         String storageType = systemConfigService.getStorageType();
+        log.info("Storage type detected: {}", storageType);
         
         switch (storageType.toLowerCase()) {
             case "s3":
+                log.info("Using S3 storage for file: {}", file.getOriginalFilename());
                 return storeFileS3(file, folder);
             case "hybrid":
+                log.info("Using hybrid storage for file: {}", file.getOriginalFilename());
                 return storeFileHybrid(file, folder);
             case "local":
             default:
+                log.info("Using local storage for file: {}", file.getOriginalFilename());
                 return storeFileLocal(file, folder);
         }
     }
@@ -51,6 +64,63 @@ public class StorageService {
     public String storeFileForProduct(MultipartFile file, String productName, String productId) throws IOException {
         String humanReadableFolder = createHumanReadableFolder(productName, productId);
         return storeFile(file, humanReadableFolder);
+    }
+
+    /**
+     * Store file with dual URL storage (both local and S3)
+     */
+    public ProductImageStorageResult storeFileDual(MultipartFile file, String folder) throws IOException {
+        String storageType = systemConfigService.getStorageType();
+        ProductImageStorageResult result = new ProductImageStorageResult();
+        
+        try {
+            switch (storageType.toLowerCase()) {
+                case "s3":
+                    // Store only to S3
+                    String s3StorageKey = storeFileS3(file, folder);
+                    String s3Url = getS3FileUrl(s3StorageKey);
+                    result.setS3StorageKey(s3StorageKey);
+                    result.setS3Url(s3Url);
+                    result.setStorageType("s3");
+                    break;
+                    
+                case "hybrid":
+                    // Store to both S3 and local
+                    String hybridS3StorageKey = storeFileS3(file, folder);
+                    String hybridLocalStorageKey = storeFileLocal(file, folder);
+                    String hybridS3Url = getS3FileUrl(hybridS3StorageKey);
+                    String hybridLocalUrl = getLocalFileUrl(hybridLocalStorageKey);
+                    result.setS3StorageKey(hybridS3StorageKey);
+                    result.setLocalStorageKey(hybridLocalStorageKey);
+                    result.setS3Url(hybridS3Url);
+                    result.setLocalUrl(hybridLocalUrl);
+                    result.setStorageType("hybrid");
+                    break;
+                    
+                case "local":
+                default:
+                    // Store only to local
+                    String localStorageKey = storeFileLocal(file, folder);
+                    String localUrl = getLocalFileUrl(localStorageKey);
+                    result.setLocalStorageKey(localStorageKey);
+                    result.setLocalUrl(localUrl);
+                    result.setStorageType("local");
+                    break;
+            }
+            
+            return result;
+        } catch (Exception e) {
+            log.error("Failed to store file with dual storage: {}", e.getMessage(), e);
+            throw new IOException("Failed to store file: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Store file for a product with dual URL storage
+     */
+    public ProductImageStorageResult storeFileForProductDual(MultipartFile file, String productName, String productId) throws IOException {
+        String humanReadableFolder = createHumanReadableFolder(productName, productId);
+        return storeFileDual(file, humanReadableFolder);
     }
 
     /**
@@ -88,7 +158,7 @@ public class StorageService {
     /**
      * Store file locally
      */
-    private String storeFileLocal(MultipartFile file, String folder) throws IOException {
+    String storeFileLocal(MultipartFile file, String folder) throws IOException {
         String basePath = systemConfigService.getLocalStoragePath();
         String fileName = generateUniqueFileName(file.getOriginalFilename());
         String storageKey = folder + "/" + fileName;
@@ -124,12 +194,21 @@ public class StorageService {
     /**
      * Store file to S3 (placeholder - needs AWS SDK implementation)
      */
-    private String storeFileS3(MultipartFile file, String folder) throws IOException {
+    String storeFileS3(MultipartFile file, String folder) throws IOException {
         try {
+            // Check if S3 is properly configured
+            if (!isS3Configured()) {
+                log.error("S3 is not properly configured - cannot upload file");
+                throw new IOException("S3 is not properly configured");
+            }
+            
             S3Client s3Client = createS3Client();
             String bucketName = systemConfigService.getS3BucketName();
             String fileName = generateUniqueFileName(file.getOriginalFilename());
             String storageKey = folder + "/" + fileName;
+
+            log.info("Uploading file to S3 - Bucket: {}, Key: {}, Size: {}, ContentType: {}", 
+                    bucketName, storageKey, file.getSize(), file.getContentType());
 
             // Upload file to S3
             PutObjectRequest putObjectRequest = PutObjectRequest.builder()
@@ -141,8 +220,10 @@ public class StorageService {
 
             s3Client.putObject(putObjectRequest, RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
             
+            log.info("Successfully uploaded file to S3: {}", storageKey);
             return storageKey;
         } catch (Exception e) {
+            log.error("Failed to upload file to S3: {}", e.getMessage(), e);
             throw new IOException("Failed to upload file to S3: " + e.getMessage(), e);
         }
     }
@@ -210,17 +291,47 @@ public class StorageService {
         String accessKey = systemConfigService.getS3AccessKey();
         String secretKey = systemConfigService.getS3SecretKey();
         String region = systemConfigService.getS3Region();
+        String bucketName = systemConfigService.getS3BucketName();
+        
+        log.info("S3 Configuration - Region: {}, Bucket: {}, AccessKey: {}", region, bucketName, accessKey.isEmpty() ? "EMPTY" : "SET");
         
         if (accessKey.isEmpty() || secretKey.isEmpty()) {
+            log.error("S3 credentials not configured - AccessKey: {}, SecretKey: {}", accessKey.isEmpty() ? "EMPTY" : "SET", secretKey.isEmpty() ? "EMPTY" : "SET");
             throw new IllegalStateException("S3 credentials not configured");
         }
 
         AwsBasicCredentials awsCredentials = AwsBasicCredentials.create(accessKey, secretKey);
         
-        return S3Client.builder()
+        S3Client client = S3Client.builder()
                 .region(Region.of(region))
                 .credentialsProvider(StaticCredentialsProvider.create(awsCredentials))
                 .build();
+        
+        log.info("S3 client created successfully for region: {}", region);
+        return client;
+    }
+
+    /**
+     * Check if S3 is properly configured
+     */
+    public boolean isS3Configured() {
+        try {
+            String accessKey = systemConfigService.getS3AccessKey();
+            String secretKey = systemConfigService.getS3SecretKey();
+            String region = systemConfigService.getS3Region();
+            String bucketName = systemConfigService.getS3BucketName();
+            
+            boolean configured = !accessKey.isEmpty() && !secretKey.isEmpty() && !region.isEmpty() && !bucketName.isEmpty();
+            log.info("S3 Configuration check - AccessKey: {}, SecretKey: {}, Region: {}, Bucket: {}, Configured: {}", 
+                    accessKey.isEmpty() ? "EMPTY" : "SET", 
+                    secretKey.isEmpty() ? "EMPTY" : "SET", 
+                    region, bucketName, configured);
+            
+            return configured;
+        } catch (Exception e) {
+            log.warn("Error checking S3 configuration: {}", e.getMessage());
+            return false;
+        }
     }
 
     /**
@@ -245,7 +356,10 @@ public class StorageService {
             String fileName = Paths.get(s3StorageKey).getFileName().toString();
             Path localFilePath = localDir.resolve(fileName);
             
-            s3Client.getObject(getObjectRequest, localFilePath);
+            // Download the object to local file
+            try (var response = s3Client.getObject(getObjectRequest)) {
+                Files.copy(response, localFilePath, StandardCopyOption.REPLACE_EXISTING);
+            }
             
             return localFolder + "/" + fileName;
         } catch (Exception e) {
@@ -333,5 +447,158 @@ public class StorageService {
             // Fallback to local URL
             return getLocalFileUrl(storageKey);
         }
+    }
+    
+    /**
+     * Clear all files from a specific S3 folder
+     */
+    public int clearS3Folder(String folderPath) throws IOException {
+        if (!isS3Configured()) {
+            throw new IOException("S3 is not configured");
+        }
+        
+        try {
+            log.info("Clearing S3 folder: {}", folderPath);
+            
+            S3Client s3Client = createS3Client();
+            String bucketName = systemConfigService.getS3BucketName();
+            
+            // Ensure folder path ends with /
+            if (!folderPath.endsWith("/")) {
+                folderPath = folderPath + "/";
+            }
+            
+            // List all objects with the folder prefix
+            ListObjectsV2Request listRequest = ListObjectsV2Request.builder()
+                    .bucket(bucketName)
+                    .prefix(folderPath)
+                    .build();
+            
+            ListObjectsV2Response listResponse = s3Client.listObjectsV2(listRequest);
+            List<S3Object> objects = listResponse.contents();
+            
+            if (objects.isEmpty()) {
+                log.info("No objects found in S3 folder: {}", folderPath);
+                return 0;
+            }
+            
+            // Delete all objects
+            int deletedCount = 0;
+            for (S3Object object : objects) {
+                try {
+                    DeleteObjectRequest deleteRequest = DeleteObjectRequest.builder()
+                            .bucket(bucketName)
+                            .key(object.key())
+                            .build();
+                    
+                    s3Client.deleteObject(deleteRequest);
+                    deletedCount++;
+                    log.debug("Deleted S3 object: {}", object.key());
+                } catch (Exception e) {
+                    log.error("Failed to delete S3 object {}: {}", object.key(), e.getMessage());
+                }
+            }
+            
+            log.info("Successfully deleted {} objects from S3 folder: {}", deletedCount, folderPath);
+            return deletedCount;
+            
+        } catch (Exception e) {
+            log.error("Error clearing S3 folder {}: {}", folderPath, e.getMessage(), e);
+            throw new IOException("Failed to clear S3 folder: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Clear all files from a specific local folder
+     */
+    public int clearLocalFolder(String folderPath) throws IOException {
+        try {
+            log.info("Clearing local folder: {}", folderPath);
+            
+            String localStoragePath = systemConfigService.getLocalStoragePath();
+            Path folder = Paths.get(localStoragePath, folderPath);
+            
+            if (!Files.exists(folder)) {
+                log.info("Local folder does not exist: {}", folder);
+                return 0;
+            }
+            
+            if (!Files.isDirectory(folder)) {
+                log.warn("Path is not a directory: {}", folder);
+                return 0;
+            }
+            
+            // Delete all files in the folder
+            int deletedCount = 0;
+            try (Stream<Path> paths = Files.walk(folder)) {
+                List<Path> files = paths
+                        .filter(Files::isRegularFile)
+                        .collect(Collectors.toList());
+                
+                for (Path file : files) {
+                    try {
+                        Files.delete(file);
+                        deletedCount++;
+                        log.debug("Deleted local file: {}", file);
+                    } catch (Exception e) {
+                        log.error("Failed to delete local file {}: {}", file, e.getMessage());
+                    }
+                }
+            }
+            
+            log.info("Successfully deleted {} files from local folder: {}", deletedCount, folder);
+            return deletedCount;
+            
+        } catch (Exception e) {
+            log.error("Error clearing local folder {}: {}", folderPath, e.getMessage(), e);
+            throw new IOException("Failed to clear local folder: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Clear all files from a specific folder (S3, local, or hybrid based on storage type)
+     */
+    public Map<String, Object> clearFolder(String folderPath) throws IOException {
+        String storageType = systemConfigService.getStorageType();
+        Map<String, Object> result = new HashMap<>();
+        
+        log.info("Clearing folder '{}' with storage type: {}", folderPath, storageType);
+        
+        if ("s3".equals(storageType)) {
+            int deletedCount = clearS3Folder(folderPath);
+            result.put("storageType", "s3");
+            result.put("deletedCount", deletedCount);
+            result.put("message", "Cleared " + deletedCount + " files from S3 folder: " + folderPath);
+        } else if ("hybrid".equals(storageType)) {
+            // Clear both S3 and local
+            int s3Deleted = 0;
+            int localDeleted = 0;
+            
+            try {
+                s3Deleted = clearS3Folder(folderPath);
+            } catch (Exception e) {
+                log.warn("Failed to clear S3 folder: {}", e.getMessage());
+            }
+            
+            try {
+                localDeleted = clearLocalFolder(folderPath);
+            } catch (Exception e) {
+                log.warn("Failed to clear local folder: {}", e.getMessage());
+            }
+            
+            result.put("storageType", "hybrid");
+            result.put("s3DeletedCount", s3Deleted);
+            result.put("localDeletedCount", localDeleted);
+            result.put("totalDeletedCount", s3Deleted + localDeleted);
+            result.put("message", "Cleared " + s3Deleted + " files from S3 and " + localDeleted + " files from local folder: " + folderPath);
+        } else {
+            // Default to local
+            int deletedCount = clearLocalFolder(folderPath);
+            result.put("storageType", "local");
+            result.put("deletedCount", deletedCount);
+            result.put("message", "Cleared " + deletedCount + " files from local folder: " + folderPath);
+        }
+        
+        return result;
     }
 }

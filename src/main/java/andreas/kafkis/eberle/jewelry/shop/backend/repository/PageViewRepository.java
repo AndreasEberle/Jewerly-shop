@@ -38,3 +38,5 @@ public interface PageViewRepository extends JpaRepository<PageView, UUID> {
            "ORDER BY date ASC")
     List<Object[]> findDailyPageViewsSince(@Param("since") OffsetDateTime since);
 }
+
+

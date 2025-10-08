@@ -33,7 +33,13 @@ public class PaymentService {
         Specification<Payment> spec = Specification.where(null);
         
         if (status != null && !status.isEmpty()) {
-            spec = spec.and((root, query, cb) -> cb.equal(root.get("status"), status));
+            try {
+                Payment.PaymentStatus paymentStatus = Payment.PaymentStatus.valueOf(status.toUpperCase());
+                spec = spec.and((root, query, cb) -> cb.equal(root.get("status"), paymentStatus));
+            } catch (IllegalArgumentException e) {
+                // Invalid status value, ignore the filter
+                log.warn("Invalid payment status filter: {}", status);
+            }
         }
         
         if (paymentMethod != null && !paymentMethod.isEmpty()) {
@@ -66,7 +72,7 @@ public class PaymentService {
         // Payments by status
         Map<String, Long> paymentsByStatus = new HashMap<>();
         for (Payment.PaymentStatus status : Payment.PaymentStatus.values()) {
-            long count = paymentRepository.countByStatus(status);
+            long count = paymentRepository.countByStatus(status.name());
             paymentsByStatus.put(status.name(), count);
         }
         stats.put("paymentsByStatus", paymentsByStatus);
@@ -81,11 +87,11 @@ public class PaymentService {
         stats.put("recentPayments", recentPayments);
         
         // Total revenue
-        BigDecimal totalRevenue = paymentRepository.sumAmountByStatus(Payment.PaymentStatus.SUCCESS);
+        BigDecimal totalRevenue = paymentRepository.sumAmountByStatus(Payment.PaymentStatus.COMPLETED.name());
         stats.put("totalRevenue", totalRevenue != null ? totalRevenue : BigDecimal.ZERO);
         
         // Average payment amount
-        BigDecimal avgPaymentAmount = paymentRepository.avgAmountByStatus(Payment.PaymentStatus.SUCCESS);
+        BigDecimal avgPaymentAmount = paymentRepository.avgAmountByStatus(Payment.PaymentStatus.COMPLETED.name());
         stats.put("avgPaymentAmount", avgPaymentAmount != null ? avgPaymentAmount : BigDecimal.ZERO);
         
         return stats;
@@ -132,11 +138,11 @@ public class PaymentService {
             // For demo purposes, simulate payment processing
             // In a real implementation, this would integrate with payment gateways
             if ("demo".equals(request.getPaymentMethod())) {
-                payment.setStatus(Payment.PaymentStatus.SUCCESS);
+                payment.setStatus(Payment.PaymentStatus.COMPLETED);
                 payment.setProcessedAt(LocalDateTime.now());
             } else {
                 // Simulate processing delay and success
-                payment.setStatus(Payment.PaymentStatus.SUCCESS);
+                payment.setStatus(Payment.PaymentStatus.COMPLETED);
                 payment.setProcessedAt(LocalDateTime.now());
             }
             
@@ -197,7 +203,7 @@ public class PaymentService {
             Payment payment = paymentRepository.findById(paymentId)
                     .orElseThrow(() -> new RuntimeException("Payment not found with ID: " + paymentId));
             
-            if (payment.getStatus() != Payment.PaymentStatus.SUCCESS) {
+            if (payment.getStatus() != Payment.PaymentStatus.COMPLETED) {
                 throw new RuntimeException("Only successful payments can be refunded");
             }
             
@@ -210,7 +216,7 @@ public class PaymentService {
             refund.setOrder(payment.getOrder());
             refund.setAmount(amount.negate()); // Negative amount for refund
             refund.setPaymentMethod(payment.getPaymentMethod() + "_REFUND");
-            refund.setStatus(Payment.PaymentStatus.SUCCESS);
+            refund.setStatus(Payment.PaymentStatus.COMPLETED);
             refund.setTransactionId(UUID.randomUUID().toString());
             refund.setProcessedAt(LocalDateTime.now());
             refund.setNotes("Refund for payment " + payment.getTransactionId());

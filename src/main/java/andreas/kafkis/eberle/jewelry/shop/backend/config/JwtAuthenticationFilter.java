@@ -52,34 +52,46 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         jwt = authHeader.substring(7);
-        userEmail = jwtService.extractUsername(jwt);
         
-        System.out.println("JWT Filter: Extracted user email: " + userEmail);
+        try {
+            userEmail = jwtService.extractUsername(jwt);
+            System.out.println("JWT Filter: Extracted user email: " + userEmail);
 
-        if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-            System.out.println("JWT Filter: Loading user details for: " + userEmail);
-            UserDetails userDetails = this.userDetailsService.loadUserByUsername(userEmail);
-            
-            System.out.println("JWT Filter: User details loaded: " + (userDetails != null ? userDetails.getUsername() : "null"));
-            System.out.println("JWT Filter: Token valid: " + jwtService.isTokenValid(jwt, userDetails));
-            
-            if (jwtService.isTokenValid(jwt, userDetails)) {
-                System.out.println("JWT Filter: Setting authentication for user: " + userEmail);
-                UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                        userDetails,
-                        null,
-                        userDetails.getAuthorities()
-                );
-                authToken.setDetails(
-                        new WebAuthenticationDetailsSource().buildDetails(request)
-                );
-                SecurityContextHolder.getContext().setAuthentication(authToken);
-                System.out.println("JWT Filter: Authentication set successfully");
+            if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                System.out.println("JWT Filter: Loading user details for: " + userEmail);
+                UserDetails userDetails = this.userDetailsService.loadUserByUsername(userEmail);
+                
+                System.out.println("JWT Filter: User details loaded: " + (userDetails != null ? userDetails.getUsername() : "null"));
+                System.out.println("JWT Filter: Token valid: " + jwtService.isTokenValid(jwt, userDetails));
+                
+                if (jwtService.isTokenValid(jwt, userDetails)) {
+                    System.out.println("JWT Filter: Setting authentication for user: " + userEmail);
+                    UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+                            userDetails,
+                            null,
+                            userDetails.getAuthorities()
+                    );
+                    authToken.setDetails(
+                            new WebAuthenticationDetailsSource().buildDetails(request)
+                    );
+                    SecurityContextHolder.getContext().setAuthentication(authToken);
+                    System.out.println("JWT Filter: Authentication set successfully");
+                } else {
+                    System.out.println("JWT Filter: Token is invalid for user: " + userEmail);
+                }
             } else {
-                System.out.println("JWT Filter: Token is invalid for user: " + userEmail);
+                System.out.println("JWT Filter: User email is null or authentication already exists");
             }
-        } else {
-            System.out.println("JWT Filter: User email is null or authentication already exists");
+        } catch (io.jsonwebtoken.ExpiredJwtException e) {
+            System.out.println("JWT Filter: Token expired - " + e.getMessage());
+            // Don't set authentication, let the request continue without authentication
+            // The client should handle this by refreshing the token or redirecting to login
+        } catch (io.jsonwebtoken.JwtException e) {
+            System.out.println("JWT Filter: Invalid JWT token - " + e.getMessage());
+            // Don't set authentication, let the request continue without authentication
+        } catch (Exception e) {
+            System.out.println("JWT Filter: Error processing JWT token - " + e.getMessage());
+            // Don't set authentication, let the request continue without authentication
         }
         
         filterChain.doFilter(request, response);
