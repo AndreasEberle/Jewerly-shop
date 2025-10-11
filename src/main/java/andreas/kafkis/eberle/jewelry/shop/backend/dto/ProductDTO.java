@@ -25,8 +25,13 @@ public class ProductDTO {
     private String material;
     private String gemstone;
     private BigDecimal weightGrams;
+    private String ringSize;
+    private String chainLength;
+    private String color;
+    private String finish;
     private Integer quantity;
     private boolean active;
+    private boolean showInFeatured;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
     

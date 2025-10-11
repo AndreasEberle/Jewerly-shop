@@ -33,12 +33,12 @@ public class RateLimitingFilter implements Filter {
     private final RateLimitingService rateLimitingService;
     private final ObjectMapper objectMapper;
     
-    // Endpoints that should be rate limited
+    // Endpoints that should be rate limited - Only the most critical ones
     private static final List<String> RATE_LIMITED_PATHS = Arrays.asList(
             "/api/auth/login",
             "/api/auth/register",
-            "/api/orders",
-            "/api/payments"
+            "/api/orders/create",  // Only rate limit order creation, not browsing
+            "/api/payments/process"  // Only rate limit payment processing, not browsing
     );
     
     // Endpoints that should be excluded from rate limiting
@@ -49,7 +49,20 @@ public class RateLimitingFilter implements Filter {
             "/oauth2",
             "/api/products",
             "/api/currency",
-            "/api/language"
+            "/api/language",
+            "/api/public",
+            "/api/user/favorites",
+            "/api/admin",  // Exclude ALL admin endpoints
+            "/api/categories",  // Exclude category browsing
+            "/api/reviews",  // Exclude reviews
+            "/api/section-styles",  // Exclude section styles
+            "/api/hero-slider",  // Exclude hero slider
+            "/api/branding",  // Exclude branding
+            "/api/special-offer-descriptions",  // Exclude special offers
+            "/api/upload",  // Exclude uploads
+            "/api/storage",  // Exclude storage
+            "/api/background-images",  // Exclude background images
+            "/api/system-config"  // Exclude system config
     );
 
     @Override
@@ -91,10 +104,22 @@ public class RateLimitingFilter implements Filter {
             !"anonymousUser".equals(authentication.getName())) {
             
             String userEmail = authentication.getName();
+            boolean isAdmin = authentication.getAuthorities().stream()
+                    .anyMatch(auth -> auth.getAuthority().equals("ROLE_ADMIN"));
+            
+            // Skip rate limiting for admin users on most endpoints
+            if (isAdmin && !requestPath.startsWith("/api/auth/") && !requestPath.startsWith("/api/orders/create") && !requestPath.startsWith("/api/payments/process")) {
+                chain.doFilter(request, response);
+                return;
+            }
             
             // Special rate limiting for auth endpoints
             if (requestPath.startsWith("/api/auth/")) {
-                if (!rateLimitingService.canAttemptAuth(userEmail)) {
+                boolean canAuth = isAdmin ? 
+                    rateLimitingService.canAdminAttemptAuth(userEmail) : 
+                    rateLimitingService.canAttemptAuth(userEmail);
+                    
+                if (!canAuth) {
                     log.warn("Auth rate limit exceeded for user: {} on path: {}", userEmail, requestPath);
                     sendRateLimitResponse(httpResponse, "Authentication rate limit exceeded", 
                             rateLimitingService.getRemainingTokens(userEmail));
@@ -104,7 +129,11 @@ public class RateLimitingFilter implements Filter {
             
             // Special rate limiting for order creation
             if (requestPath.startsWith("/api/orders") && "POST".equals(method)) {
-                if (!rateLimitingService.canCreateOrder(userEmail)) {
+                boolean canCreateOrder = isAdmin ? 
+                    rateLimitingService.canAdminCreateOrder(userEmail) : 
+                    rateLimitingService.canCreateOrder(userEmail);
+                    
+                if (!canCreateOrder) {
                     log.warn("Order creation rate limit exceeded for user: {} on path: {}", userEmail, requestPath);
                     sendRateLimitResponse(httpResponse, "Order creation rate limit exceeded", 
                             rateLimitingService.getRemainingTokens(userEmail));
@@ -113,7 +142,11 @@ public class RateLimitingFilter implements Filter {
             }
             
             // General user rate limiting
-            if (!rateLimitingService.isUserAllowed(userEmail)) {
+            boolean isAllowed = isAdmin ? 
+                rateLimitingService.isAdminAllowed(userEmail) : 
+                rateLimitingService.isUserAllowed(userEmail);
+                
+            if (!isAllowed) {
                 log.warn("User rate limit exceeded for user: {} on path: {}", userEmail, requestPath);
                 sendRateLimitResponse(httpResponse, "User rate limit exceeded", 
                         rateLimitingService.getRemainingTokens(userEmail));

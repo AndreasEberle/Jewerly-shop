@@ -62,6 +62,18 @@ public class Product {
     @Column(name = "weight_grams", precision = 10, scale = 3)
     private java.math.BigDecimal weightGrams;
 
+    @Column(name = "ring_size", length = 20)
+    private String ringSize;
+
+    @Column(name = "chain_length", length = 20)
+    private String chainLength;
+
+    @Column(name = "color", length = 50)
+    private String color;
+
+    @Column(name = "finish", length = 50)
+    private String finish;
+
     @Column(name = "quantity", nullable = false)
     private Integer quantity = 0;
 
@@ -75,6 +87,22 @@ public class Product {
 
     @Column(name = "is_active", nullable = false)
     private boolean active = true;
+
+    // Special offer fields
+    @Column(name = "special_offer", nullable = false)
+    private boolean specialOffer = false;
+
+    @Column(name = "special_offer_price_cents")
+    private Long specialOfferPriceCents;
+
+    @Column(name = "special_offer_description", columnDefinition = "TEXT")
+    private String specialOfferDescription;
+
+    @Column(name = "sort_order", nullable = false)
+    private Integer sortOrder = 0;
+
+    @Column(name = "show_in_featured", nullable = false)
+    private Boolean showInFeatured = false;
 
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(name = "product_categories",
@@ -94,6 +122,11 @@ public class Product {
     // Custom getter to convert priceCents to price
     public BigDecimal getPrice() {
         return priceCents != null ? new BigDecimal(priceCents).divide(new BigDecimal(100)) : BigDecimal.ZERO;
+    }
+
+    // Custom getter to convert specialOfferPriceCents to specialOfferPrice
+    public BigDecimal getSpecialOfferPrice() {
+        return specialOfferPriceCents != null ? new BigDecimal(specialOfferPriceCents).divide(new BigDecimal(100)) : null;
     }
 }
 

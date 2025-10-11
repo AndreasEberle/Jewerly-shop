@@ -60,6 +60,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/products/*/images", "/api/products/*/images/*").permitAll() // Product images
                 .requestMatchers("/api/currency/supported", "/api/currency/convert").permitAll() // Currency endpoints for guests
                 .requestMatchers("/api/language/supported").permitAll() // Language endpoints for guests
+                .requestMatchers("/api/public/**").permitAll() // All public API endpoints
                 .requestMatchers("/error").permitAll()
                 .requestMatchers("/login/oauth2/**").permitAll() // OAuth2 endpoints
                 .requestMatchers("/oauth2/**").permitAll()

@@ -3,6 +3,7 @@ package andreas.kafkis.eberle.jewelry.shop.backend.service;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -14,6 +15,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import andreas.kafkis.eberle.jewelry.shop.backend.controller.AdminProductOrderController;
 import andreas.kafkis.eberle.jewelry.shop.backend.dto.CreateProductRequest;
 import andreas.kafkis.eberle.jewelry.shop.backend.dto.ProductDTO;
 import andreas.kafkis.eberle.jewelry.shop.backend.dto.ProductImageDTO;
@@ -44,10 +46,16 @@ public class ProductService {
     private ProductImageRepository productImageRepository;
     
     @Autowired
+    private ProductImageManagementService productImageManagementService;
+    
+    @Autowired
     private CategoryRepository categoryRepository;
     
     @Autowired
     private TagRepository tagRepository;
+    
+    @Autowired
+    private StorageService storageService;
 
     public Product create(Product product) {
         return productRepository.save(product);
@@ -112,9 +120,8 @@ public class ProductService {
 
     @Transactional(readOnly = true)
     public List<Product> findFeaturedProducts(int limit) {
-        // For now, return the first N active products
-        // In a real application, you might have a "featured" flag or use analytics
-        return productRepository.findByActiveTrueOrderByCreatedAtDesc()
+        // Return only products marked as featured, ordered by sort_order, then by created_at
+        return productRepository.findByActiveTrueAndShowInFeaturedTrueOrderBySortOrderAscCreatedAtDesc()
                 .stream()
                 .peek(product -> {
                     // Eagerly load categories to avoid LazyInitializationException
@@ -279,8 +286,16 @@ public class ProductService {
                 .material(request.getMaterial())
                 .gemstone(request.getGemstone())
                 .weightGrams(request.getWeightGrams())
+                .ringSize(request.getRingSize())
+                .chainLength(request.getChainLength())
+                .color(request.getColor())
+                .finish(request.getFinish())
                 .quantity(request.getQuantity())
                 .active(request.isActive())
+                .specialOffer(request.isSpecialOffer())
+                .specialOfferPriceCents(request.getSpecialOfferPrice() != null ? 
+                    request.getSpecialOfferPrice().multiply(BigDecimal.valueOf(100)).longValue() : null)
+                .specialOfferDescription(request.getSpecialOfferDescription())
                 .build();
         
         // Handle categories
@@ -299,6 +314,17 @@ public class ProductService {
             product.setTags(tags);
         }
         
+        // Set new product as featured with sort_order 1 and update other products
+        product.setShowInFeatured(true);
+        product.setSortOrder(1);
+        
+        // Update other products' sort_order by incrementing them
+        List<Product> existingProducts = productRepository.findByActiveTrueOrderBySortOrderAscCreatedAtDesc();
+        for (Product existingProduct : existingProducts) {
+            existingProduct.setSortOrder(existingProduct.getSortOrder() + 1);
+            productRepository.save(existingProduct);
+        }
+        
         Product savedProduct = productRepository.save(product);
         return convertToDTO(savedProduct);
     }
@@ -309,6 +335,32 @@ public class ProductService {
     public ProductDTO updateProduct(UUID productId, UpdateProductRequest request) {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + productId));
+        
+        // Validate unique name if being updated
+        if (request.getName() != null && !request.getName().equals(product.getName())) {
+            if (productRepository.findByName(request.getName()).isPresent()) {
+                throw new IllegalArgumentException("Product name already exists: " + request.getName());
+            }
+            
+            // Handle S3 image folder migration when product name changes
+            try {
+                productImageManagementService.handleProductNameChange(
+                    productId, 
+                    product.getName(), 
+                    request.getName()
+                );
+            } catch (Exception e) {
+                // Log error but don't fail the update
+                System.err.println("Error migrating S3 images for product " + productId + ": " + e.getMessage());
+            }
+        }
+        
+        // Validate unique SKU if being updated
+        if (request.getSku() != null && !request.getSku().equals(product.getSku())) {
+            if (productRepository.findBySku(request.getSku()).isPresent()) {
+                throw new IllegalArgumentException("Product SKU already exists: " + request.getSku());
+            }
+        }
         
         // Update basic fields
         if (request.getName() != null) {
@@ -335,11 +387,32 @@ public class ProductService {
         if (request.getWeightGrams() != null) {
             product.setWeightGrams(request.getWeightGrams());
         }
+        if (request.getRingSize() != null) {
+            product.setRingSize(request.getRingSize());
+        }
+        if (request.getChainLength() != null) {
+            product.setChainLength(request.getChainLength());
+        }
+        if (request.getColor() != null) {
+            product.setColor(request.getColor());
+        }
+        if (request.getFinish() != null) {
+            product.setFinish(request.getFinish());
+        }
         if (request.getQuantity() != null) {
             product.setQuantity(request.getQuantity());
         }
         if (request.getActive() != null) {
             product.setActive(request.getActive());
+        }
+        if (request.getSpecialOffer() != null) {
+            product.setSpecialOffer(request.getSpecialOffer());
+        }
+        if (request.getSpecialOfferPrice() != null) {
+            product.setSpecialOfferPriceCents(request.getSpecialOfferPrice().multiply(BigDecimal.valueOf(100)).longValue());
+        }
+        if (request.getSpecialOfferDescription() != null) {
+            product.setSpecialOfferDescription(request.getSpecialOfferDescription());
         }
         
         // Handle categories
@@ -376,6 +449,7 @@ public class ProductService {
      */
     public List<ProductDTO> getAllProducts() {
         return productRepository.findAll().stream()
+                .sorted((a, b) -> Integer.compare(a.getSortOrder(), b.getSortOrder()))
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
     }
@@ -393,12 +467,54 @@ public class ProductService {
      * Get featured products
      */
     public List<ProductDTO> getFeaturedProducts(int limit) {
-        return productRepository.findByActiveTrueOrderByCreatedAtDesc().stream()
+        return productRepository.findByActiveTrueAndShowInFeaturedTrueOrderBySortOrderAscCreatedAtDesc().stream()
                 .limit(limit)
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
     }
     
+    /**
+     * Reorder products based on provided order
+     */
+    @Transactional
+    public void reorderProducts(List<UUID> productIds) {
+        for (int i = 0; i < productIds.size(); i++) {
+        	Optional<Product> product = productRepository.findById(productIds.get(i));
+        	if(product.isEmpty()) {
+        		throw new ResourceNotFoundException("Product not found with id: " + productIds.get(i));
+        	}
+            product.get().setSortOrder(i + 1);
+            productRepository.save(product.get());
+        }
+    }
+
+    /**
+     * Get all products with their current order
+     */
+    @Transactional(readOnly = true)
+    public List<AdminProductOrderController.ProductOrderDTO> getProductOrder() {
+        return productRepository.findAll().stream()
+                .map(product -> new AdminProductOrderController.ProductOrderDTO(
+                        product.getId(),
+                        product.getName(),
+                        product.getSortOrder()
+                ))
+                .sorted((a, b) -> Integer.compare(a.getSortOrder(), b.getSortOrder()))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Toggle featured status of a product
+     */
+    @Transactional
+    public void toggleFeaturedStatus(UUID productId) {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + productId));
+        
+        product.setShowInFeatured(!product.getShowInFeatured());
+        productRepository.save(product);
+    }
+
     /**
      * Delete a product
      */
@@ -406,8 +522,13 @@ public class ProductService {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + productId));
         
-        // Delete associated images first
-        productImageRepository.deleteByProduct(product);
+        // Clean up all product images (S3 and database)
+        try {
+            productImageManagementService.cleanupProductImages(productId);
+        } catch (Exception e) {
+            System.err.println("Error cleaning up product images for " + productId + ": " + e.getMessage());
+            // Continue with deletion even if image cleanup fails
+        }
         
         // Delete the product
         productRepository.delete(product);
@@ -444,7 +565,7 @@ public class ProductService {
     /**
      * Convert Product entity to ProductDTO
      */
-    private ProductDTO convertToDTO(Product product) {
+    public ProductDTO convertToDTO(Product product) {
         // Load images for this product
         List<ProductImage> images = productImageRepository.findByProductOrderBySortOrder(product);
         
@@ -458,8 +579,16 @@ public class ProductService {
                 .material(product.getMaterial())
                 .gemstone(product.getGemstone())
                 .weightGrams(product.getWeightGrams())
+                .ringSize(product.getRingSize())
+                .chainLength(product.getChainLength())
+                .color(product.getColor())
+                .finish(product.getFinish())
                 .quantity(product.getQuantity())
                 .active(product.isActive())
+                .showInFeatured(product.getShowInFeatured())
+                .specialOffer(product.isSpecialOffer())
+                .specialOfferPrice(product.getSpecialOfferPrice())
+                .specialOfferDescription(product.getSpecialOfferDescription())
                 .createdAt(product.getCreatedAt())
                 .updatedAt(product.getUpdatedAt())
                 .categories(product.getCategories().stream()

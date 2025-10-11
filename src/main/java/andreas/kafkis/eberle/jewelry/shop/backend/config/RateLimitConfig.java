@@ -22,9 +22,9 @@ public class RateLimitConfig implements WebMvcConfigurer {
 
     @Bean
     public Bucket createNewBucket() {
-        // 100 requests per minute
+        // 1000 requests per minute - Much more generous
         return Bucket.builder()
-                .addLimit(limit -> limit.capacity(100).refillGreedy(100, Duration.ofMinutes(1)))
+                .addLimit(limit -> limit.capacity(1000).refillGreedy(1000, Duration.ofMinutes(1)))
                 .build();
     }
 
@@ -36,7 +36,25 @@ public class RateLimitConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(rateLimitInterceptor(buckets()))
-                .addPathPatterns("/api/**")
-                .excludePathPatterns("/api/admin/upload/**"); // Exclude upload from rate limiting
+                .addPathPatterns("/api/auth/login", "/api/auth/register", "/api/orders/create", "/api/payments/process") // Only critical endpoints
+                .excludePathPatterns(
+                    "/api/admin/**",  // Exclude ALL admin endpoints
+                    "/api/public/**",  // Exclude public endpoints
+                    "/api/products/**",  // Exclude product browsing
+                    "/api/categories/**",  // Exclude category browsing
+                    "/api/favorites/**",  // Exclude favorites
+                    "/api/reviews/**",  // Exclude reviews
+                    "/api/section-styles/**",  // Exclude section styles
+                    "/api/hero-slider/**",  // Exclude hero slider
+                    "/api/branding/**",  // Exclude branding
+                    "/api/special-offer-descriptions/**",  // Exclude special offers
+                    "/api/upload/**",  // Exclude uploads
+                    "/api/storage/**",  // Exclude storage
+                    "/api/background-images/**",  // Exclude background images
+                    "/api/system-config/**",  // Exclude system config
+                    "/api/health/**",  // Exclude health checks
+                    "/api/currency/**",  // Exclude currency
+                    "/api/language/**"  // Exclude language
+                );
     }
 }

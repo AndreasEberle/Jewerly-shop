@@ -17,11 +17,16 @@ public class RateLimitingService {
     private final Map<String, RateLimitInfo> userBuckets = new ConcurrentHashMap<>();
     private final Map<String, RateLimitInfo> ipBuckets = new ConcurrentHashMap<>();
     
-    // Rate limits
-    private static final int USER_REQUESTS_PER_MINUTE = 60;
-    private static final int IP_REQUESTS_PER_MINUTE = 100;
-    private static final int AUTH_ATTEMPTS_PER_HOUR = 5;
-    private static final int ORDER_CREATION_PER_HOUR = 10;
+    // Rate limits - Made much more generous
+    private static final int USER_REQUESTS_PER_MINUTE = 300;  // 5 requests per second
+    private static final int IP_REQUESTS_PER_MINUTE = 600;    // 10 requests per second
+    private static final int AUTH_ATTEMPTS_PER_HOUR = 20;     // 20 auth attempts per hour
+    private static final int ORDER_CREATION_PER_HOUR = 50;    // 50 orders per hour
+    
+    // Admin rate limits - Even more generous
+    private static final int ADMIN_REQUESTS_PER_MINUTE = 1000;  // 16+ requests per second
+    private static final int ADMIN_AUTH_ATTEMPTS_PER_HOUR = 100;  // 100 auth attempts per hour
+    private static final int ADMIN_ORDER_CREATION_PER_HOUR = 200;  // 200 orders per hour
     
     // Rate limit info class
     private static class RateLimitInfo {
@@ -150,6 +155,53 @@ public class RateLimitingService {
     public void resetIpRateLimit(String ipAddress) {
         ipBuckets.remove(ipAddress);
         log.info("Rate limits reset for IP: {}", ipAddress);
+    }
+    
+    /**
+     * Check if admin user can make a request (more generous limits)
+     */
+    public boolean isAdminAllowed(String userEmail) {
+        RateLimitInfo bucket = userBuckets.computeIfAbsent("admin_" + userEmail, 
+                k -> new RateLimitInfo(ADMIN_REQUESTS_PER_MINUTE, Duration.ofMinutes(1)));
+        boolean allowed = bucket.tryConsume();
+        
+        if (!allowed) {
+            log.warn("Admin rate limit exceeded for user: {}", userEmail);
+        }
+        
+        return allowed;
+    }
+    
+    /**
+     * Check if admin can attempt authentication (more generous limits)
+     */
+    public boolean canAdminAttemptAuth(String userEmail) {
+        String key = "admin_auth_" + userEmail;
+        RateLimitInfo bucket = userBuckets.computeIfAbsent(key, 
+                k -> new RateLimitInfo(ADMIN_AUTH_ATTEMPTS_PER_HOUR, Duration.ofHours(1)));
+        boolean allowed = bucket.tryConsume();
+        
+        if (!allowed) {
+            log.warn("Admin authentication rate limit exceeded for user: {}", userEmail);
+        }
+        
+        return allowed;
+    }
+    
+    /**
+     * Check if admin can create orders (more generous limits)
+     */
+    public boolean canAdminCreateOrder(String userEmail) {
+        String key = "admin_order_" + userEmail;
+        RateLimitInfo bucket = userBuckets.computeIfAbsent(key, 
+                k -> new RateLimitInfo(ADMIN_ORDER_CREATION_PER_HOUR, Duration.ofHours(1)));
+        boolean allowed = bucket.tryConsume();
+        
+        if (!allowed) {
+            log.warn("Admin order creation rate limit exceeded for user: {}", userEmail);
+        }
+        
+        return allowed;
     }
 }
 

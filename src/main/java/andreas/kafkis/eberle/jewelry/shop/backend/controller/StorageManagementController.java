@@ -1,6 +1,7 @@
 package andreas.kafkis.eberle.jewelry.shop.backend.controller;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 import org.slf4j.Logger;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import andreas.kafkis.eberle.jewelry.shop.backend.service.ProductImageManagementService;
 import andreas.kafkis.eberle.jewelry.shop.backend.service.StorageService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -26,6 +28,9 @@ public class StorageManagementController {
     
     @Autowired
     private StorageService storageService;
+    
+    @Autowired
+    private ProductImageManagementService productImageManagementService;
     
     @DeleteMapping("/clear/{folderPath}")
     @PreAuthorize("hasRole('ADMIN')")
@@ -63,9 +68,36 @@ public class StorageManagementController {
     
     @DeleteMapping("/clear/products")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Clear all product images")
-    public ResponseEntity<Map<String, Object>> clearProductImages() {
-        return clearFolder("products");
+    @Operation(summary = "Delete all products and their images")
+    public ResponseEntity<Map<String, Object>> deleteAllProducts() {
+        try {
+            log.info("Starting deletion of all products and their images...");
+            
+            // Delete all products and their associated images
+            productImageManagementService.deleteAllProducts();
+            
+            // Also clear the S3 folder for any remaining files
+            ResponseEntity<Map<String, Object>> folderResult = clearFolder("products");
+            
+            Map<String, Object> response = new HashMap<>();
+            if (folderResult.getBody() != null) {
+                response.putAll(folderResult.getBody());
+            }
+            response.put("message", "All products and their images have been deleted successfully");
+            response.put("products_deleted", "completed");
+            response.put("images_deleted", "completed");
+            
+            log.info("Successfully completed deletion of all products and images");
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("Error deleting all products: {}", e.getMessage(), e);
+            Map<String, Object> errorResponse = Map.of(
+                "success", false,
+                "message", "Failed to delete all products: " + e.getMessage()
+            );
+            return ResponseEntity.internalServerError().body(errorResponse);
+        }
     }
     
     @DeleteMapping("/clear/backgrounds")

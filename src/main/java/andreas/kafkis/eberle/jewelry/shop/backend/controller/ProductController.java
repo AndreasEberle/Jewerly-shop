@@ -36,23 +36,21 @@ public class ProductController {
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Create a new product")
-    public ResponseEntity<ProductDTO> createProduct(@RequestBody CreateProductRequest request) {
+    public ResponseEntity<?> createProduct(@RequestBody CreateProductRequest request) {
         try {
             log.info("Creating product: {}", request.getName());
             
-            // Check if product name is unique
-            if (!productService.isProductNameUnique(request.getName())) {
-                return ResponseEntity.badRequest().build();
-            }
-
             ProductDTO product = productService.createProduct(request);
             
             log.info("Product created successfully: {} (ID: {})", product.getName(), product.getId());
             
             return ResponseEntity.ok(product);
+        } catch (IllegalArgumentException e) {
+            log.warn("Validation error creating product: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(e.getMessage());
         } catch (Exception e) {
             log.error("Error creating product: {}", e.getMessage(), e);
-            return ResponseEntity.internalServerError().build();
+            return ResponseEntity.internalServerError().body("An unexpected error occurred while creating the product");
         }
     }
 
@@ -85,20 +83,16 @@ public class ProductController {
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Update product")
-    public ResponseEntity<ProductDTO> updateProduct(@PathVariable UUID id, @RequestBody UpdateProductRequest request) {
+    public ResponseEntity<?> updateProduct(@PathVariable UUID id, @RequestBody UpdateProductRequest request) {
         try {
-            // Check if new name is unique (excluding current product)
-            if (request.getName() != null) {
-                if (!productService.isProductNameUnique(request.getName(), id)) {
-                    return ResponseEntity.badRequest().build();
-                }
-            }
-
             ProductDTO product = productService.updateProduct(id, request);
             return ResponseEntity.ok(product);
+        } catch (IllegalArgumentException e) {
+            log.warn("Validation error updating product: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(e.getMessage());
         } catch (Exception e) {
             log.error("Error updating product: {}", e.getMessage(), e);
-            return ResponseEntity.internalServerError().build();
+            return ResponseEntity.internalServerError().body("An unexpected error occurred while updating the product");
         }
     }
 

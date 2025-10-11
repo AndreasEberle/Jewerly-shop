@@ -231,7 +231,7 @@ public class StorageService {
     /**
      * Get S3 file URL (placeholder)
      */
-    private String getS3FileUrl(String storageKey) {
+    String getS3FileUrl(String storageKey) {
         String bucketName = systemConfigService.getS3BucketName();
         String region = systemConfigService.getS3Region();
         return String.format("https://%s.s3.%s.amazonaws.com/%s", bucketName, region, storageKey);
@@ -380,6 +380,14 @@ public class StorageService {
             return String.format("Local: %s", 
                 systemConfigService.getLocalStoragePath());
         }
+    }
+    
+    /**
+     * Check if S3 storage is enabled
+     */
+    public boolean isS3Enabled() {
+        String storageType = systemConfigService.getStorageType();
+        return "s3".equals(storageType) || "hybrid".equals(storageType);
     }
 
     /**
@@ -600,5 +608,62 @@ public class StorageService {
         }
         
         return result;
+    }
+    
+    /**
+     * Copy an image from one S3 location to another
+     */
+    public boolean copyImage(String sourceKey, String destinationKey) {
+        try {
+            if (!isS3Enabled()) {
+                return false;
+            }
+            
+            S3Client s3Client = createS3Client();
+            String bucketName = systemConfigService.getS3BucketName();
+            
+            // Copy object
+            s3Client.copyObject(copyRequest -> copyRequest
+                .sourceBucket(bucketName)
+                .sourceKey(sourceKey)
+                .destinationBucket(bucketName)
+                .destinationKey(destinationKey)
+            );
+            
+            log.info("Successfully copied image from {} to {}", sourceKey, destinationKey);
+            return true;
+        } catch (Exception e) {
+            log.error("Error copying image from {} to {}: {}", sourceKey, destinationKey, e.getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * Delete an image by key (works for both S3 and local)
+     */
+    public boolean deleteImage(String key) {
+        if (key == null || key.isEmpty()) {
+            return false;
+        }
+        
+        try {
+            if (isS3Enabled() && key.startsWith("products/")) {
+                // S3 deletion
+                return deleteFile(key);
+            } else {
+                // Local file deletion
+                String localStoragePath = systemConfigService.getLocalStoragePath();
+                Path filePath = Paths.get(localStoragePath, key);
+                if (Files.exists(filePath)) {
+                    Files.delete(filePath);
+                    log.info("Successfully deleted local image: {}", key);
+                    return true;
+                }
+            }
+        } catch (Exception e) {
+            log.error("Error deleting image {}: {}", key, e.getMessage());
+        }
+        
+        return false;
     }
 }

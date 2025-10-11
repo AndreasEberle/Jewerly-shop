@@ -35,6 +35,18 @@ public class UpdateProductRequest {
     
     private BigDecimal weightGrams;
     
+    @Size(max = 20, message = "Ring size must not exceed 20 characters")
+    private String ringSize;
+    
+    @Size(max = 20, message = "Chain length must not exceed 20 characters")
+    private String chainLength;
+    
+    @Size(max = 50, message = "Color must not exceed 50 characters")
+    private String color;
+    
+    @Size(max = 50, message = "Finish must not exceed 50 characters")
+    private String finish;
+    
     private Integer quantity;
     
     private Boolean active;
