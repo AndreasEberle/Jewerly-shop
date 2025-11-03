@@ -36,10 +36,10 @@ public class Address {
     @JoinColumn(name = "user_id")
     private User user;
 
-    @Column(name = "street", nullable = false, length = 255)
+    @Column(name = "line1", nullable = false, length = 255)
     private String street;
 
-    @Column(name = "apartment", length = 255)
+    @Column(name = "line2", length = 255)
     private String apartment;
 
     @Column(nullable = false, length = 100)

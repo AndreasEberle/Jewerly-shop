@@ -1,0 +1,16 @@
+{
+  "name": "Classic Gold Hoop Earrings",
+  "sku": "TEST-EARRINGS-001",
+  "description": "Experience the timeless elegance of our Premium Gold Hoop Earrings. \n\nCrafted with meticulous attention to detail, this exquisite piece features:\n• Premium 14k Yellow Gold construction for lasting beauty\n• Smooth polished finish that catches the light beautifully\n• Adjustable sizing for comfortable wear\n\nPerfect for everyday wear or as a meaningful gift, this piece showcases exceptional craftsmanship and design.\n\nSpecifications:\n• Material: 14k Yellow Gold\n• Color: Yellow Gold\n• Weight: 8.5 grams\n\nCare Instructions:\n• Clean gently with a soft cloth\n• Store in a jewelry box to prevent tarnishing\n• Avoid contact with harsh chemicals\n\nElevate your jewelry collection with this stunning piece that combines classic design with modern sophistication.",
+  "price": 299.99,
+  "quantity": 5,
+  "weightGrams": 8.5,
+  "material": "Gold",
+  "color": "Gold",
+  "finish": "Polished",
+  "category": "Earrings",
+  "tags": ["hoops", "gold", "classic", "everyday"],
+  "specialOffer": false,
+  "active": true
+}
+

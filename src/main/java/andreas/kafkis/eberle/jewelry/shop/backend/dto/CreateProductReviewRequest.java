@@ -31,3 +31,6 @@ public class CreateProductReviewRequest {
     
     private Boolean isVerifiedPurchase = false;
 }
+
+
+

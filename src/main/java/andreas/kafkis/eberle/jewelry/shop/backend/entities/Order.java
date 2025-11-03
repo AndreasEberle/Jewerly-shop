@@ -47,7 +47,7 @@ public class Order {
     private User customer;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(nullable = false, length = 50)
     private OrderStatus status = OrderStatus.PENDING;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -73,11 +73,29 @@ public class Order {
     @Column(name = "total_amount", precision = 10, scale = 2)
     private BigDecimal totalAmount;
 
+    @Column(name = "total_cents", nullable = false)
+    private Long totalCents;
+
+    @Column(name = "currency", length = 3)
+    private String currency;
+
     @Column(name = "notes", length = 1000)
     private String notes;
 
     @Column(name = "order_date")
     private LocalDateTime orderDate;
+
+    @Column(name = "tracking_number", length = 255)
+    private String trackingNumber;
+
+    @Column(name = "carrier", length = 100)
+    private String carrier;
+
+    @Column(name = "tracking_link", length = 500)
+    private String trackingLink;
+
+    @Column(name = "estimated_delivery_days")
+    private Integer estimatedDeliveryDays;
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItem> orderItems = new ArrayList<>();

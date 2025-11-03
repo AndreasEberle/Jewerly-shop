@@ -3,3 +3,6 @@ INSERT INTO system_config (config_key, config_value, description, is_active, cre
 VALUES 
     ('discount_color', '#ef4444', 'Color for discount badges and special offer highlights', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
     ('original_price_color', '#f97316', 'Color for original price strikethrough text', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+
+
+

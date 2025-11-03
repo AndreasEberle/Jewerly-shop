@@ -57,6 +57,7 @@ public class SecurityConfig {
                 // Public endpoints - only what's truly needed
                        .requestMatchers("/api/auth/login", "/api/auth/register", "/api/auth/oauth2/**", "/api/auth/verify-2fa", "/api/auth/2fa/setup", "/api/auth/2fa/verify-setup", "/api/auth/2fa/global-status", "/api/auth/jwt/**", "/api/auth/debug/**", "/api/auth/oauth2/error", "/api/auth/oauth2/success", "/api/auth/oauth2/urls", "/api/auth/test-password").permitAll()
                 .requestMatchers("/api/products", "/api/products/*", "/api/products/category/**").permitAll() // Only view products publicly
+                .requestMatchers("/api/products/*/availability", "/api/products/availability").permitAll() // Product availability endpoints
                 .requestMatchers("/api/products/*/images", "/api/products/*/images/*").permitAll() // Product images
                 .requestMatchers("/api/currency/supported", "/api/currency/convert").permitAll() // Currency endpoints for guests
                 .requestMatchers("/api/language/supported").permitAll() // Language endpoints for guests

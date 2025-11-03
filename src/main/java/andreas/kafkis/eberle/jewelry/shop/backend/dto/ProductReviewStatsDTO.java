@@ -19,3 +19,6 @@ public class ProductReviewStatsDTO {
     private Integer rating5Count;
     private Integer verifiedPurchaseCount;
 }
+
+
+

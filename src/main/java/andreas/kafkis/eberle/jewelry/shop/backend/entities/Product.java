@@ -42,6 +42,9 @@ public class Product {
     private String sku;
 
     @Column(nullable = false, unique = true, length = 255)
+    private String slug;
+
+    @Column(nullable = false, unique = true, length = 255)
     private String name;
 
     @Column(columnDefinition = "TEXT")

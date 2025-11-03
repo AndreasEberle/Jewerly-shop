@@ -1,0 +1,19 @@
+{
+  "name": "Silver Pendant Necklace",
+  "sku": "TEST-NECKLACE-002",
+  "description": "Experience the timeless elegance of our Sterling Silver Pendant Necklace. \n\nCrafted with meticulous attention to detail, this exquisite piece features:\n• Premium Sterling Silver construction for lasting beauty\n• Elegant minimalist pendant design\n• Adjustable chain length for perfect fit\n\nPerfect for special occasions or as a meaningful gift, this piece showcases exceptional craftsmanship and design.\n\nSpecifications:\n• Material: Sterling Silver\n• Color: Silver\n• Weight: 12.3 grams\n• Chain Length: 45cm\n\nCare Instructions:\n• Clean gently with a soft cloth\n• Store in a jewelry box to prevent tarnishing\n• Avoid contact with harsh chemicals\n\nElevate your jewelry collection with this stunning piece that combines classic design with modern sophistication.",
+  "price": 149.99,
+  "quantity": 3,
+  "weightGrams": 12.3,
+  "material": "Silver",
+  "color": "Silver",
+  "finish": "High Polish",
+  "chainLength": "45",
+  "category": "Necklaces",
+  "tags": ["pendant", "silver", "minimalist", "elegant"],
+  "specialOffer": true,
+  "specialOfferPrice": 119.99,
+  "specialOfferDescriptions": ["Limited Time Offer", "Free Shipping"],
+  "active": true
+}
+

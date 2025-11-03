@@ -23,3 +23,6 @@ CREATE INDEX idx_products_show_in_featured ON products(show_in_featured);
 -- Add comments to the columns
 COMMENT ON COLUMN products.sort_order IS 'Display order for products in carousel and listings';
 COMMENT ON COLUMN products.show_in_featured IS 'Whether this product should be shown in the featured carousel';
+
+
+

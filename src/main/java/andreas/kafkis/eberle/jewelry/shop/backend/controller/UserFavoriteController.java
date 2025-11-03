@@ -31,11 +31,26 @@ public class UserFavoriteController {
     private UserService userService;
     
     /**
+     * Helper method to get current user from authentication
+     */
+    private User getCurrentUser(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new RuntimeException("User not authenticated");
+        }
+        String email = authentication.getName();
+        User user = userService.findByEmail(email);
+        if (user == null) {
+            throw new RuntimeException("User not found with email: " + email);
+        }
+        return user;
+    }
+    
+    /**
      * Get user's favorite products
      */
     @GetMapping
     public ResponseEntity<List<ProductDTO>> getUserFavorites(Authentication authentication) {
-        User user = (User) authentication.getPrincipal();
+        User user = getCurrentUser(authentication);
         List<ProductDTO> favorites = userFavoriteService.getUserFavorites(user.getId());
         return ResponseEntity.ok(favorites);
     }
@@ -45,7 +60,7 @@ public class UserFavoriteController {
      */
     @PostMapping("/{productId}")
     public ResponseEntity<String> addToFavorites(@PathVariable UUID productId, Authentication authentication) {
-        User user = (User) authentication.getPrincipal();
+        User user = getCurrentUser(authentication);
         userFavoriteService.addToFavorites(user.getId(), productId);
         return ResponseEntity.ok("Product added to favorites");
     }
@@ -55,7 +70,7 @@ public class UserFavoriteController {
      */
     @DeleteMapping("/{productId}")
     public ResponseEntity<String> removeFromFavorites(@PathVariable UUID productId, Authentication authentication) {
-        User user = (User) authentication.getPrincipal();
+        User user = getCurrentUser(authentication);
         userFavoriteService.removeFromFavorites(user.getId(), productId);
         return ResponseEntity.ok("Product removed from favorites");
     }
@@ -65,7 +80,7 @@ public class UserFavoriteController {
      */
     @PostMapping("/{productId}/toggle")
     public ResponseEntity<Boolean> toggleFavorite(@PathVariable UUID productId, Authentication authentication) {
-        User user = (User) authentication.getPrincipal();
+        User user = getCurrentUser(authentication);
         boolean isFavorite = userFavoriteService.toggleFavorite(user.getId(), productId);
         return ResponseEntity.ok(isFavorite);
     }
@@ -75,7 +90,7 @@ public class UserFavoriteController {
      */
     @GetMapping("/{productId}/status")
     public ResponseEntity<Boolean> isFavorite(@PathVariable UUID productId, Authentication authentication) {
-        User user = (User) authentication.getPrincipal();
+        User user = getCurrentUser(authentication);
         boolean isFavorite = userFavoriteService.isFavorite(user.getId(), productId);
         return ResponseEntity.ok(isFavorite);
     }

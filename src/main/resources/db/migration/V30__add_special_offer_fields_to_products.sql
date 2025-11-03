@@ -16,3 +16,6 @@ CHECK (
     (special_offer = FALSE) OR 
     (special_offer = TRUE AND special_offer_price_cents IS NOT NULL AND special_offer_price_cents > 0)
 );
+
+
+

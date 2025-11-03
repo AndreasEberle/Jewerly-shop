@@ -1,0 +1,18 @@
+{
+  "name": "Diamond Engagement Ring",
+  "sku": "TEST-RING-003",
+  "description": "Experience the timeless elegance of our Platinum Diamond Engagement Ring. \n\nCrafted with meticulous attention to detail, this exquisite piece features:\n• Premium Platinum construction for lasting beauty\n• Brilliant round-cut diamond center stone\n• Prong setting that maximizes light reflection\n\nPerfect for engagement proposals or special milestones, this piece showcases exceptional craftsmanship and design.\n\nSpecifications:\n• Material: Platinum\n• Color: White\n• Weight: 5.8 grams\n• Ring Size: 7\n• Gemstone: Diamond\n\nCare Instructions:\n• Clean gently with a soft cloth and jewelry cleaner\n• Store in a jewelry box to prevent tarnishing\n• Avoid contact with harsh chemicals\n• Professional cleaning recommended annually\n\nElevate your jewelry collection with this stunning piece that combines classic design with modern sophistication.",
+  "price": 2499.99,
+  "quantity": 1,
+  "weightGrams": 5.8,
+  "material": "Platinum",
+  "color": "White",
+  "finish": "High Polish",
+  "ringSize": "7",
+  "gemstone": "Diamond",
+  "category": "Rings",
+  "tags": ["engagement", "diamond", "platinum", "luxury"],
+  "specialOffer": false,
+  "active": true
+}
+

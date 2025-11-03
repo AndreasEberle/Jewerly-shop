@@ -5,6 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -59,6 +60,9 @@ public class FileUploadController {
     
     @Autowired
     private ImageOptimizationService imageOptimizationService;
+    
+    @Autowired
+    private andreas.kafkis.eberle.jewelry.shop.backend.service.SystemConfigService systemConfigService;
 
     private static final List<String> ALLOWED_EXTENSIONS = Arrays.asList("jpg", "jpeg", "png", "webp", "gif");
     private static final List<String> PREFERRED_EXTENSIONS = Arrays.asList("webp", "jpg", "jpeg"); // WebP preferred for better compression
@@ -375,6 +379,138 @@ public class FileUploadController {
         }
     }
     
+    /**
+     * Upload packaging image and store URL in system config
+     */
+    @PostMapping("/admin/upload/packaging")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Upload packaging image")
+    public ResponseEntity<Map<String, Object>> uploadPackagingImage(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam("configKey") String configKey) {
+        try {
+            // Validate file
+            if (file.isEmpty()) {
+                Map<String, Object> response = new HashMap<>();
+                response.put("success", false);
+                response.put("message", "File is empty");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            String originalFilename = file.getOriginalFilename();
+            if (originalFilename == null) {
+                Map<String, Object> response = new HashMap<>();
+                response.put("success", false);
+                response.put("message", "Invalid filename");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            String extension = getFileExtension(originalFilename).toLowerCase();
+            if (!ALLOWED_EXTENSIONS.contains(extension)) {
+                Map<String, Object> response = new HashMap<>();
+                response.put("success", false);
+                response.put("message", "Invalid file type. Allowed: " + String.join(", ", ALLOWED_EXTENSIONS));
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            if (file.getSize() > MAX_FILE_SIZE) {
+                Map<String, Object> response = new HashMap<>();
+                response.put("success", false);
+                response.put("message", "File size exceeds maximum allowed size");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            // Determine subfolder based on configKey
+            String subfolder;
+            if (configKey.contains("standard")) {
+                subfolder = "packaging/standard";
+            } else if (configKey.contains("premium")) {
+                subfolder = "packaging/premium";
+            } else {
+                subfolder = "packaging";
+            }
+            
+            // Delete old image in this subfolder before uploading new one
+            try {
+                // List files in the subfolder and delete them
+                Map<String, Object> clearResult = storageService.clearFolder(subfolder);
+                log.info("Cleared old packaging images from {}: {} files deleted", subfolder, clearResult.get("deletedCount"));
+            } catch (Exception e) {
+                log.warn("Failed to clear old packaging images (continuing with upload): {}", e.getMessage());
+            }
+            
+            // Store file in specific packaging subfolder
+            String storageKey = storageService.storeFile(file, subfolder);
+            String fileUrl = storageService.getFileUrl(storageKey);
+            
+            // Automatically save URL to system config
+            systemConfigService.setConfigValue(configKey, fileUrl, "Packaging image URL for " + subfolder);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Packaging image uploaded successfully");
+            response.put("url", fileUrl);
+            response.put("s3Url", fileUrl);
+            response.put("storageKey", storageKey);
+
+            log.info("Uploaded packaging image: configKey={}, subfolder={}, url={}", configKey, subfolder, fileUrl);
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("Failed to upload packaging image: {}", e.getMessage(), e);
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("message", "Failed to upload packaging image: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
+    
+    /**
+     * Delete packaging image from S3 and clear system config
+     */
+    @DeleteMapping("/admin/upload/packaging")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Delete packaging image")
+    public ResponseEntity<Map<String, Object>> deletePackagingImage(
+            @RequestParam("configKey") String configKey) {
+        try {
+            // Determine subfolder based on configKey
+            String subfolder;
+            if (configKey.contains("standard")) {
+                subfolder = "packaging/standard";
+            } else if (configKey.contains("premium")) {
+                subfolder = "packaging/premium";
+            } else {
+                subfolder = "packaging";
+            }
+            
+            // Delete all files in the subfolder
+            try {
+                Map<String, Object> clearResult = storageService.clearFolder(subfolder);
+                log.info("Deleted packaging images from {}: {} files deleted", subfolder, clearResult.get("deletedCount"));
+            } catch (Exception e) {
+                log.warn("Failed to delete files from storage (continuing with config update): {}", e.getMessage());
+            }
+            
+            // Clear system config
+            systemConfigService.setConfigValue(configKey, "", "Packaging image removed for " + subfolder);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Packaging image deleted successfully");
+            
+            log.info("Deleted packaging image: configKey={}, subfolder={}", configKey, subfolder);
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("Failed to delete packaging image: {}", e.getMessage(), e);
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("message", "Failed to delete packaging image: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
+
     private String getClientIpAddress(HttpServletRequest request) {
         String xForwardedFor = request.getHeader("X-Forwarded-For");
         if (xForwardedFor != null && !xForwardedFor.isEmpty()) {

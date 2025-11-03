@@ -34,3 +34,6 @@ public interface UserAnalyticsRepository extends JpaRepository<UserAnalytics, UU
 }
 
 
+
+
+

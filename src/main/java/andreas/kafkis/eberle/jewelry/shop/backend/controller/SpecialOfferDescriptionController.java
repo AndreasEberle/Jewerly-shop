@@ -124,3 +124,6 @@ public class SpecialOfferDescriptionController {
         public void setDescription(String description) { this.description = description; }
     }
 }
+
+
+

@@ -63,9 +63,20 @@ public class PaymentController {
         return ResponseEntity.ok(java.util.Map.of(
                 "methods", java.util.List.of(
                         java.util.Map.of("id", "stripe", "name", "Credit Card (Stripe)", "enabled", true),
-                        java.util.Map.of("id", "paypal", "name", "PayPal", "enabled", true),
+                        java.util.Map.of("id", "paypal", "name", "PayPal", "enabled", false),
                         java.util.Map.of("id", "demo", "name", "Demo Payment", "enabled", true)
                 )
         ));
+    }
+    
+    /**
+     * Process Stripe payment confirmation
+     */
+    @PostMapping("/stripe/confirm")
+    public ResponseEntity<PaymentResponse> confirmStripePayment(
+            @RequestParam UUID orderId,
+            @RequestParam String paymentIntentId) {
+        PaymentResponse response = paymentService.processStripePayment(orderId, paymentIntentId);
+        return ResponseEntity.ok(response);
     }
 }

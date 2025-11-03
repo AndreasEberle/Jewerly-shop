@@ -39,8 +39,17 @@ public class OrderItem {
     @Column(nullable = false)
     private Integer quantity;
 
-    @Column(name = "unit_price", nullable = false, precision = 10, scale = 2)
-    private BigDecimal unitPrice;
+    @Column(name = "unit_price_cents", nullable = false)
+    private Long unitPriceCents;
+    
+    // Helper method to get/set unit price as BigDecimal
+    public BigDecimal getUnitPrice() {
+        return unitPriceCents != null ? BigDecimal.valueOf(unitPriceCents).divide(BigDecimal.valueOf(100)) : null;
+    }
+    
+    public void setUnitPrice(BigDecimal unitPrice) {
+        this.unitPriceCents = unitPrice != null ? unitPrice.multiply(BigDecimal.valueOf(100)).longValue() : null;
+    }
 }
 
 

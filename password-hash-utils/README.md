@@ -154,3 +154,6 @@ for (Map.Entry<String, String> entry : hashes.entrySet()) {
 This project is part of the Jewelry Shop application and follows the same license terms.
 
 
+
+
+

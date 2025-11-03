@@ -113,3 +113,6 @@ public class UserFavoriteService {
         return userFavoriteRepository.countByProductId(productId);
     }
 }
+
+
+

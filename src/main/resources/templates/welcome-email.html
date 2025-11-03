@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f4f4f4; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; background-color: #ffffff; }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 5px 5px 0 0; color: white; }
+        .header h1 { margin: 0; font-size: 28px; }
+        .content { padding: 30px 20px; }
+        .footer { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; color: #666; font-size: 14px; }
+        .button { display: inline-block; padding: 12px 30px; background-color: #667eea; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+        .button:hover { background-color: #5568d3; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Welcome to <span th:text="${shopName}">Jewelry Shop</span>!</h1>
+        </div>
+        
+        <div class="content">
+            <p>Dear <strong th:text="${user.firstName}">Customer</strong>,</p>
+            
+            <p>We're thrilled to have you join our community of jewelry lovers! 🎉</p>
+            
+            <p>Your account has been successfully created. Now you can:</p>
+            <ul>
+                <li>Browse our exquisite collection of jewelry</li>
+                <li>Save your favorite pieces to your wishlist</li>
+                <li>Track your orders and view your purchase history</li>
+                <li>Enjoy exclusive offers and updates</li>
+            </ul>
+            
+            <div style="text-align: center;">
+                <a href="https://yourshop.com/products" class="button" style="color: white; text-decoration: none;">Start Shopping</a>
+            </div>
+            
+            <p>If you have any questions or need assistance, please don't hesitate to contact us at <a th:href="'mailto:' + ${supportEmail}" th:text="${supportEmail}">support@example.com</a>.</p>
+            
+            <p>Happy shopping!</p>
+            
+            <p>Best regards,<br>
+            The <span th:text="${shopName}">Jewelry Shop</span> Team</p>
+        </div>
+        
+        <div class="footer">
+            <p><small>This is an automated message. Please do not reply to this email.</small></p>
+        </div>
+    </div>
+</body>
+</html>
+

@@ -40,3 +40,6 @@ public interface ProductReviewRepository extends JpaRepository<ProductReview, UU
     
     Page<ProductReview> findByUserIdOrderByCreatedAtDesc(UUID userId, Pageable pageable);
 }
+
+
+

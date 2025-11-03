@@ -31,3 +31,6 @@ COMMENT ON COLUMN product_reviews.is_verified_purchase IS 'Whether the reviewer 
 COMMENT ON COLUMN product_reviews.is_approved IS 'Whether the review is approved for display';
 COMMENT ON COLUMN product_reviews.created_at IS 'When the review was created';
 COMMENT ON COLUMN product_reviews.updated_at IS 'When the review was last updated';
+
+
+

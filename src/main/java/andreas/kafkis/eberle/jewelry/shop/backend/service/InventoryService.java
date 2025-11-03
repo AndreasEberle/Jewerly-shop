@@ -195,16 +195,16 @@ public class InventoryService {
      * Create inventory record for a product
      */
     private Inventory createInventoryForProduct(UUID productId) {
-        // Verify product exists
+        // Verify product exists and is properly persisted
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> ResourceNotFoundException.forProduct(productId.toString()));
 
-        Inventory inventory = Inventory.builder()
-                .productId(productId)
-                .product(product)
-                .quantity(0)
-                .reserved(0)
-                .build();
+        // Create new Inventory entity - since @MapsId is used, we only need to set the product
+        // Hibernate will automatically set productId from product.getId()
+        Inventory inventory = new Inventory();
+        inventory.setProduct(product);  // This will automatically set productId via @MapsId
+        inventory.setQuantity(0);
+        inventory.setReserved(0);
 
         return inventoryRepository.save(inventory);
     }

@@ -26,6 +26,13 @@ public class OrderResponse {
     private LocalDateTime orderDate;
     private LocalDateTime updatedAt;
     private String notes;
+    private String currency;
+    private String trackingNumber;
+    private String carrier;
+    private String trackingLink;
+    private Integer estimatedDeliveryDays;
+    private String discountCode;
+    private BigDecimal discountAmount;
     private UserInfo customer;
     private AddressInfo shippingAddress;
     private AddressInfo billingAddress;
@@ -64,9 +71,11 @@ public class OrderResponse {
         private UUID id;
         private UUID productId;
         private String productName;
+        private String productSlug;
         private Integer quantity;
         private BigDecimal unitPrice;
         private BigDecimal totalPrice;
+        private String productImageUrl;
     }
     
     @Data

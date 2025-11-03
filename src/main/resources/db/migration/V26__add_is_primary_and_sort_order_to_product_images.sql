@@ -36,3 +36,6 @@ WHERE product_images.id = subquery.id;
 -- Add comments
 COMMENT ON COLUMN product_images.is_primary IS 'Indicates if this is the primary/featured image for the product';
 COMMENT ON COLUMN product_images.sort_order IS 'Order of the image for display purposes';
+
+
+

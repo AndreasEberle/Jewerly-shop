@@ -25,3 +25,6 @@ public interface UserFavoriteRepository extends JpaRepository<UserFavorite, UUID
     @Query("SELECT COUNT(f) FROM UserFavorite f WHERE f.product.id = :productId")
     long countByProductId(@Param("productId") UUID productId);
 }
+
+
+

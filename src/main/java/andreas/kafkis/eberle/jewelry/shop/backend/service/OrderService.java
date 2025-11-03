@@ -5,6 +5,7 @@ import java.time.OffsetDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -21,11 +22,16 @@ import andreas.kafkis.eberle.jewelry.shop.backend.dto.OrderItemDTO;
 import andreas.kafkis.eberle.jewelry.shop.backend.dto.OrderResponse;
 import andreas.kafkis.eberle.jewelry.shop.backend.dto.PaymentDTO;
 import andreas.kafkis.eberle.jewelry.shop.backend.dto.UpdateOrderStatusRequest;
+import andreas.kafkis.eberle.jewelry.shop.backend.dto.ValidateDiscountCodeResponse;
 import andreas.kafkis.eberle.jewelry.shop.backend.entities.Address;
+import andreas.kafkis.eberle.jewelry.shop.backend.entities.Cart;
 import andreas.kafkis.eberle.jewelry.shop.backend.entities.Order;
 import andreas.kafkis.eberle.jewelry.shop.backend.entities.OrderItem;
 import andreas.kafkis.eberle.jewelry.shop.backend.entities.Payment;
+import andreas.kafkis.eberle.jewelry.shop.backend.entities.Product;
 import andreas.kafkis.eberle.jewelry.shop.backend.entities.User;
+import andreas.kafkis.eberle.jewelry.shop.backend.repository.CartRepository;
+import andreas.kafkis.eberle.jewelry.shop.backend.repository.DiscountCodeUsageRepository;
 import andreas.kafkis.eberle.jewelry.shop.backend.repository.OrderRepository;
 import andreas.kafkis.eberle.jewelry.shop.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -38,6 +44,13 @@ public class OrderService {
     
     private final OrderRepository orderRepository;
     private final UserRepository userRepository;
+    private final CartReservationService cartReservationService;
+    private final andreas.kafkis.eberle.jewelry.shop.backend.repository.ProductRepository productRepository;
+    private final CartRepository cartRepository;
+    private final DiscountCodeService discountCodeService;
+    private final DiscountCodeUsageRepository discountCodeUsageRepository;
+    private final andreas.kafkis.eberle.jewelry.shop.backend.repository.AddressRepository addressRepository;
+    private final andreas.kafkis.eberle.jewelry.shop.backend.repository.OrderItemRepository orderItemRepository;
     
     public Page<OrderDTO> getAllOrders(Pageable pageable, String status, String customerEmail, String orderNumber) {
         Specification<Order> spec = Specification.where(null);
@@ -209,7 +222,28 @@ public class OrderService {
     private Address createAddressFromRequest(CreateOrderRequest.AddressRequest addressRequest, User user) {
         if (addressRequest == null) return null;
         
-        return Address.builder()
+        // Check if user already has this exact address (to avoid duplicates and reuse existing)
+        List<Address> existingAddresses = addressRepository.findByUserId(user.getId());
+        Address existingAddress = existingAddresses.stream()
+            .filter(addr -> 
+                addr.getStreet().equals(addressRequest.getStreet()) &&
+                Objects.equals(addr.getApartment(), addressRequest.getApartment()) &&
+                addr.getCity().equals(addressRequest.getCity()) &&
+                Objects.equals(addr.getState(), addressRequest.getState()) &&
+                Objects.equals(addr.getPostalCode(), addressRequest.getPostalCode()) &&
+                addr.getCountry().equals(addressRequest.getCountry())
+            )
+            .findFirst()
+            .orElse(null);
+        
+        // If address exists, reuse it
+        if (existingAddress != null) {
+            log.info("Reusing existing address {} for user {}", existingAddress.getId(), user.getEmail());
+            return existingAddress;
+        }
+        
+        // Create new address
+        Address newAddress = Address.builder()
                 .user(user)
                 .street(addressRequest.getStreet())
                 .apartment(addressRequest.getApartment())
@@ -217,8 +251,14 @@ public class OrderService {
                 .state(addressRequest.getState())
                 .postalCode(addressRequest.getPostalCode())
                 .country(addressRequest.getCountry())
-                .isDefault(false)
+                .isDefault(false) // Don't set as default automatically
                 .build();
+        
+        // Save address to database (and to user's profile)
+        Address savedAddress = addressRepository.save(newAddress);
+        log.info("Created and saved new address {} for user {}", savedAddress.getId(), user.getEmail());
+        
+        return savedAddress;
     }
     
     /**
@@ -233,6 +273,10 @@ public class OrderService {
                 throw new UsernameNotFoundException("User not found with email: " + userEmail);
             }
             
+            // Get user's cart to exclude its reservations from stock check
+            List<Cart> userCarts = cartRepository.findByUser(user);
+            UUID userCartId = userCarts.isEmpty() ? null : userCarts.get(0).getId();
+            
             // Create order
             Order order = new Order();
             order.setCustomer(user);
@@ -244,15 +288,104 @@ public class OrderService {
             order.setShippingAddress(createAddressFromRequest(request.getShippingAddress(), user));
             order.setBillingAddress(createAddressFromRequest(request.getBillingAddress(), user));
             
-            // Calculate total amount (simplified)
+            // Validate stock availability and calculate total amount
             BigDecimal totalAmount = BigDecimal.ZERO;
             for (CreateOrderRequest.OrderItemRequest itemRequest : request.getItems()) {
-                // In a real implementation, you would fetch the product and calculate price
-                totalAmount = totalAmount.add(BigDecimal.valueOf(100)); // Placeholder price
+                UUID productId = UUID.fromString(itemRequest.getProductId());
+                
+                // Check available stock (excluding user's own cart reservations since we're converting cart to order)
+                int availableStock = userCartId != null 
+                    ? cartReservationService.getAvailableStockExcludingCart(productId, userCartId)
+                    : cartReservationService.getAvailableStock(productId);
+                    
+                if (availableStock < itemRequest.getQuantity()) {
+                    throw new RuntimeException(
+                        String.format("Insufficient stock for product %s. Available: %d, Requested: %d", 
+                            productId, availableStock, itemRequest.getQuantity())
+                    );
+                }
+                
+                // Fetch product for price calculation
+                Product product = productRepository.findById(productId)
+                        .orElseThrow(() -> new RuntimeException("Product not found: " + productId));
+                
+                BigDecimal itemPrice = product.isSpecialOffer() && product.getSpecialOfferPrice() != null
+                        ? product.getSpecialOfferPrice()
+                        : product.getPrice();
+                totalAmount = totalAmount.add(itemPrice.multiply(BigDecimal.valueOf(itemRequest.getQuantity())));
             }
-            order.setTotalAmount(totalAmount);
             
+            // Apply discount code if provided
+            BigDecimal discountAmount = BigDecimal.ZERO;
+            if (request.getDiscountCode() != null && !request.getDiscountCode().trim().isEmpty()) {
+                try {
+                    ValidateDiscountCodeResponse discountResponse = discountCodeService.validateDiscountCode(
+                        request.getDiscountCode().trim(), totalAmount, user);
+                    
+                    if (discountResponse.isValid()) {
+                        discountAmount = discountResponse.getDiscountAmount();
+                        totalAmount = discountResponse.getDiscountedAmount();
+                        log.info("Applied discount code {} to order. Discount: {}, New total: {}", 
+                            request.getDiscountCode(), discountAmount, totalAmount);
+                    } else {
+                        throw new RuntimeException("Invalid discount code: " + discountResponse.getMessage());
+                    }
+                } catch (Exception e) {
+                    log.warn("Failed to apply discount code {}: {}", request.getDiscountCode(), e.getMessage());
+                    throw new RuntimeException("Failed to apply discount code: " + e.getMessage());
+                }
+            }
+            
+            order.setTotalAmount(totalAmount);
+            // Convert totalAmount to cents (multiply by 100 and convert to Long)
+            order.setTotalCents(totalAmount.multiply(BigDecimal.valueOf(100)).longValue());
+            // Set currency (default to CHF if not provided)
+            order.setCurrency("CHF");
+            
+            // Set order date to current time
+            order.setOrderDate(java.time.LocalDateTime.now());
+            
+            // Save order first to get ID
             Order savedOrder = orderRepository.save(order);
+            
+            // Create OrderItems for each product in the order
+            List<OrderItem> orderItems = new java.util.ArrayList<>();
+            for (CreateOrderRequest.OrderItemRequest itemRequest : request.getItems()) {
+                UUID productId = UUID.fromString(itemRequest.getProductId());
+                Product product = productRepository.findById(productId)
+                        .orElseThrow(() -> new RuntimeException("Product not found: " + productId));
+                
+                BigDecimal itemPrice = product.isSpecialOffer() && product.getSpecialOfferPrice() != null
+                        ? product.getSpecialOfferPrice()
+                        : product.getPrice();
+                
+                // Convert BigDecimal price to cents (Long)
+                Long unitPriceCents = itemPrice.multiply(BigDecimal.valueOf(100)).longValue();
+                
+                OrderItem orderItem = OrderItem.builder()
+                        .order(savedOrder)
+                        .product(product)
+                        .quantity(itemRequest.getQuantity())
+                        .unitPriceCents(unitPriceCents)
+                        .build();
+                
+                orderItems.add(orderItem);
+            }
+            
+            // Save all order items
+            orderItemRepository.saveAll(orderItems);
+            savedOrder.getOrderItems().addAll(orderItems);
+            
+            // Record discount code usage if applied
+            if (discountAmount.compareTo(BigDecimal.ZERO) > 0 && request.getDiscountCode() != null) {
+                try {
+                    discountCodeService.applyDiscountCodeToOrder(
+                        request.getDiscountCode().trim(), savedOrder, user, discountAmount);
+                } catch (Exception e) {
+                    log.error("Failed to record discount code usage: {}", e.getMessage());
+                    // Don't fail the order creation if usage tracking fails
+                }
+            }
             
             log.info("Created order {} for user {}", savedOrder.getOrderNumber(), userEmail);
             
@@ -336,6 +469,51 @@ public class OrderService {
     }
     
     /**
+     * Update product inventory quantities based on order items
+     * Decreases quantity when order is confirmed, increases when cancelled/refunded
+     */
+    @Transactional
+    private void updateProductInventory(Order order, boolean decrease) {
+        // Force load order items if lazy
+        if (order.getOrderItems() != null) {
+            order.getOrderItems().size(); // Trigger lazy loading
+        }
+        
+        if (order.getOrderItems() == null || order.getOrderItems().isEmpty()) {
+            log.warn("Order {} has no items, skipping inventory update", order.getId());
+            return;
+        }
+        
+        for (OrderItem item : order.getOrderItems()) {
+            // Force load product if lazy
+            Product product = item.getProduct();
+            if (product == null) {
+                log.warn("OrderItem {} has no product, skipping", item.getId());
+                continue;
+            }
+            
+            int currentQuantity = product.getQuantity() != null ? product.getQuantity() : 0;
+            int quantityToUpdate = item.getQuantity();
+            
+            if (decrease) {
+                // Decrease inventory when order is confirmed
+                int newQuantity = Math.max(0, currentQuantity - quantityToUpdate);
+                product.setQuantity(newQuantity);
+                log.info("Decreased inventory for product {} ({}): {} -> {} (order {})", 
+                    product.getName(), product.getId(), currentQuantity, newQuantity, order.getOrderNumber());
+            } else {
+                // Increase inventory when order is cancelled/refunded
+                int newQuantity = currentQuantity + quantityToUpdate;
+                product.setQuantity(newQuantity);
+                log.info("Increased inventory for product {} ({}): {} -> {} (order {})", 
+                    product.getName(), product.getId(), currentQuantity, newQuantity, order.getOrderNumber());
+            }
+            
+            productRepository.save(product);
+        }
+    }
+    
+    /**
      * Update order status (Admin only)
      */
     @Transactional
@@ -343,11 +521,54 @@ public class OrderService {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found with ID: " + orderId));
         
+        Order.OrderStatus oldStatus = order.getStatus();
         order.setStatus(status);
         order.setUpdatedAt(OffsetDateTime.now());
         
+        // Update inventory based on status change
+        // If transitioning from PENDING to CONFIRMED, decrease inventory
+        if (oldStatus == Order.OrderStatus.PENDING && status == Order.OrderStatus.CONFIRMED) {
+            updateProductInventory(order, true); // Decrease
+        }
+        // If transitioning from CONFIRMED/PROCESSING/SHIPPED to CANCELLED/REFUNDED, restore inventory
+        else if ((oldStatus == Order.OrderStatus.CONFIRMED || 
+                  oldStatus == Order.OrderStatus.PROCESSING || 
+                  oldStatus == Order.OrderStatus.SHIPPED) &&
+                 (status == Order.OrderStatus.CANCELLED || status == Order.OrderStatus.REFUNDED)) {
+            updateProductInventory(order, false); // Increase (restore)
+        }
+        
         Order savedOrder = orderRepository.save(order);
-        log.info("Updated order {} status to {}", orderId, status);
+        log.info("Updated order {} status from {} to {}", orderId, oldStatus, status);
+        
+        return convertToOrderResponse(savedOrder);
+    }
+    
+    /**
+     * Update order tracking information (Admin only)
+     */
+    @Transactional
+    public OrderResponse updateOrderTracking(UUID orderId, String trackingNumber, String carrier, String trackingLink, Integer estimatedDeliveryDays) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found with ID: " + orderId));
+        
+        if (trackingNumber != null && !trackingNumber.trim().isEmpty()) {
+            order.setTrackingNumber(trackingNumber.trim());
+        }
+        if (carrier != null && !carrier.trim().isEmpty()) {
+            order.setCarrier(carrier.trim());
+        }
+        if (trackingLink != null) {
+            order.setTrackingLink(trackingLink.trim().isEmpty() ? null : trackingLink.trim());
+        }
+        if (estimatedDeliveryDays != null) {
+            order.setEstimatedDeliveryDays(estimatedDeliveryDays);
+        }
+        order.setUpdatedAt(OffsetDateTime.now());
+        
+        Order savedOrder = orderRepository.save(order);
+        log.info("Updated order {} tracking: {} ({}), link: {}, estimated days: {}", 
+            orderId, trackingNumber, carrier, trackingLink, estimatedDeliveryDays);
         
         return convertToOrderResponse(savedOrder);
     }
@@ -365,16 +586,40 @@ public class OrderService {
     private OrderResponse convertToOrderResponse(Order order) {
         User user = order.getCustomer();
         
+        // Get discount code info if available
+        String discountCode = null;
+        BigDecimal discountAmount = BigDecimal.ZERO;
+        List<andreas.kafkis.eberle.jewelry.shop.backend.entities.DiscountCodeUsage> discountUsages = 
+            discountCodeUsageRepository.findByOrderId(order.getId());
+        if (!discountUsages.isEmpty()) {
+            andreas.kafkis.eberle.jewelry.shop.backend.entities.DiscountCodeUsage usage = discountUsages.get(0);
+            discountCode = usage.getDiscountCode().getCode();
+            discountAmount = usage.getDiscountAmount();
+        }
+        
+        // Use orderDate if set, otherwise fall back to createdAt
+        java.time.LocalDateTime orderDate = order.getOrderDate();
+        if (orderDate == null && order.getCreatedAt() != null) {
+            orderDate = order.getCreatedAt().toLocalDateTime();
+        }
+        
         return OrderResponse.builder()
                 .id(order.getId())
                 .orderNumber(order.getOrderNumber())
                 .status(order.getStatus())
                 .totalAmount(order.getTotalAmount())
-                .taxAmount(BigDecimal.ZERO) // Placeholder
-                .shippingAmount(BigDecimal.ZERO) // Placeholder
-                .orderDate(order.getCreatedAt() != null ? order.getCreatedAt().toLocalDateTime() : null)
+                .taxAmount(order.getTaxAmount() != null ? order.getTaxAmount() : BigDecimal.ZERO)
+                .shippingAmount(order.getShippingAmount() != null ? order.getShippingAmount() : BigDecimal.ZERO)
+                .orderDate(orderDate)
                 .updatedAt(order.getUpdatedAt() != null ? order.getUpdatedAt().toLocalDateTime() : null)
                 .notes(order.getNotes())
+                .currency(order.getCurrency() != null ? order.getCurrency() : "CHF")
+                .trackingNumber(order.getTrackingNumber())
+                .carrier(order.getCarrier())
+                .trackingLink(order.getTrackingLink())
+                .estimatedDeliveryDays(order.getEstimatedDeliveryDays())
+                .discountCode(discountCode)
+                .discountAmount(discountAmount)
                 .customer(convertToUserInfo(user))
                 .shippingAddress(convertToAddressInfo(order.getShippingAddress()))
                 .billingAddress(convertToAddressInfo(order.getBillingAddress()))
@@ -417,14 +662,39 @@ public class OrderService {
         if (orderItems == null) return List.of();
         
         return orderItems.stream()
-                .map(item -> OrderResponse.OrderItemInfo.builder()
-                        .id(item.getId())
-                        .productId(item.getProduct().getId())
-                        .productName(item.getProduct().getName())
-                        .quantity(item.getQuantity())
-                        .unitPrice(item.getUnitPrice())
-                        .totalPrice(item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
-                        .build())
+                .map(item -> {
+                    Product product = item.getProduct();
+                    // Get primary image or first image
+                    // Initialize lazy collection if needed
+                    String imageUrl = null;
+                    try {
+                        if (product.getImages() != null) {
+                            // Force initialization of lazy collection
+                            product.getImages().size(); // This triggers lazy loading
+                            if (!product.getImages().isEmpty()) {
+                                imageUrl = product.getImages().stream()
+                                    .filter(img -> img.isPrimary())
+                                    .findFirst()
+                                    .orElse(product.getImages().get(0))
+                                    .getUrl();
+                            }
+                        }
+                    } catch (Exception e) {
+                        log.warn("Failed to load product images for product {}: {}", product.getId(), e.getMessage());
+                        // Continue without image
+                    }
+                    
+                    return OrderResponse.OrderItemInfo.builder()
+                            .id(item.getId())
+                            .productId(product.getId())
+                            .productName(product.getName())
+                            .productSlug(product.getSlug())
+                            .quantity(item.getQuantity())
+                            .unitPrice(item.getUnitPrice())
+                            .totalPrice(item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
+                            .productImageUrl(imageUrl)
+                            .build();
+                })
                 .collect(Collectors.toList());
     }
     

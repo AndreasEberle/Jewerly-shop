@@ -48,6 +48,9 @@ public class CartController {
 
     @Autowired
     private UserService userService;
+    
+    @Autowired
+    private andreas.kafkis.eberle.jewelry.shop.backend.service.CartReservationService cartReservationService;
 
     @GetMapping
     @Operation(summary = "Get user's cart")
@@ -81,6 +84,14 @@ public class CartController {
 
             Cart cart = getOrCreateCart(user);
             
+            // Reserve stock for the cart item
+            try {
+                cartReservationService.reserveStockForCart(cart, product, request.getQuantity());
+            } catch (RuntimeException e) {
+                log.warn("Failed to reserve stock: {}", e.getMessage());
+                return ResponseEntity.badRequest().body(null); // Return bad request if stock unavailable
+            }
+            
             // Check if item already exists in cart
             CartItem existingItem = cart.getItems().stream()
                     .filter(item -> item.getProduct().getId().equals(request.getProductId()))
@@ -88,7 +99,9 @@ public class CartController {
                     .orElse(null);
 
             if (existingItem != null) {
-                // Update quantity
+                // Release old reservation and create new one with updated quantity
+                cartReservationService.releaseReservation(cart.getId(), product.getId());
+                cartReservationService.reserveStockForCart(cart, product, existingItem.getQuantity() + request.getQuantity());
                 existingItem.setQuantity(existingItem.getQuantity() + request.getQuantity());
             } else {
                 // Add new item
@@ -128,10 +141,20 @@ public class CartController {
             }
 
             if (request.getQuantity() <= 0) {
+                // Release reservation before deleting
+                cartReservationService.releaseReservation(item.getCart().getId(), item.getProduct().getId());
                 cartItemRepository.delete(item);
             } else {
-                item.setQuantity(request.getQuantity());
-                cartItemRepository.save(item);
+                // Update reservation with new quantity
+                cartReservationService.releaseReservation(item.getCart().getId(), item.getProduct().getId());
+                try {
+                    cartReservationService.reserveStockForCart(item.getCart(), item.getProduct(), request.getQuantity());
+                    item.setQuantity(request.getQuantity());
+                    cartItemRepository.save(item);
+                } catch (RuntimeException e) {
+                    log.warn("Failed to reserve stock: {}", e.getMessage());
+                    return ResponseEntity.badRequest().body(null);
+                }
             }
 
             Cart cart = getOrCreateCart(user);
@@ -160,6 +183,8 @@ public class CartController {
                 return ResponseEntity.badRequest().build();
             }
 
+            // Release reservation before deleting
+            cartReservationService.releaseReservation(item.getCart().getId(), item.getProduct().getId());
             cartItemRepository.delete(item);
 
             Cart cart = getOrCreateCart(user);
@@ -181,6 +206,8 @@ public class CartController {
             }
 
             Cart cart = getOrCreateCart(user);
+            // Release all reservations
+            cartReservationService.releaseAllReservationsForCart(cart.getId());
             cart.getItems().clear();
             cartRepository.save(cart);
 

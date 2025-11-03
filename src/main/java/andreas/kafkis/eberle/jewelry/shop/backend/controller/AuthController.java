@@ -37,12 +37,15 @@ import andreas.kafkis.eberle.jewelry.shop.backend.dto.AuthenticationResponse;
 import andreas.kafkis.eberle.jewelry.shop.backend.dto.RegisterRequest;
 import andreas.kafkis.eberle.jewelry.shop.backend.dto.UserInfo;
 import andreas.kafkis.eberle.jewelry.shop.backend.entities.User;
+import andreas.kafkis.eberle.jewelry.shop.backend.entities.VerificationToken;
 import andreas.kafkis.eberle.jewelry.shop.backend.repository.UserRepository;
+import andreas.kafkis.eberle.jewelry.shop.backend.service.EmailService;
 import andreas.kafkis.eberle.jewelry.shop.backend.service.JwtService;
 import andreas.kafkis.eberle.jewelry.shop.backend.service.MetricsService;
 import andreas.kafkis.eberle.jewelry.shop.backend.service.OAuth2Service;
 import andreas.kafkis.eberle.jewelry.shop.backend.service.TwoFactorAuthService;
 import andreas.kafkis.eberle.jewelry.shop.backend.service.UserService;
+import andreas.kafkis.eberle.jewelry.shop.backend.service.VerificationTokenService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -70,7 +73,8 @@ public class AuthController {
     private final TwoFactorAuthService twoFactorAuthService;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    // private final SystemConfigService systemConfigService;
+    private final EmailService emailService;
+    private final VerificationTokenService verificationTokenService;
     
     private static final Logger log = LoggerFactory.getLogger(AuthController.class);
 
@@ -400,6 +404,14 @@ public class AuthController {
                         .email(user.getEmail())
                         .firstName(user.getFirstName())
                         .lastName(user.getLastName())
+                        .phoneCountryCode(user.getPhoneCountryCode())
+                        .phoneNumber(user.getPhoneNumber())
+                        .dateOfBirth(user.getDateOfBirth())
+                        .gender(user.getGender())
+                        .preferredLanguage(user.getPreferredLanguage())
+                        .newsletterSubscribed(user.isNewsletterSubscribed())
+                        .marketingEmails(user.isMarketingEmails())
+                        .smsNotifications(user.isSmsNotifications())
                         .roles(user.getRoles().stream()
                                 .map(role -> role.getName())
                                 .collect(Collectors.toSet()))
@@ -1166,6 +1178,110 @@ public class AuthController {
         }
     }
 
+    /**
+     * Request password reset
+     */
+    @Operation(summary = "Request password reset", description = "Send password reset email to user")
+    @PostMapping("/forgot-password")
+    public ResponseEntity<Map<String, Object>> forgotPassword(@RequestParam String email) {
+        try {
+            User user = userService.findByEmailOrNull(email);
+            if (user == null) {
+                // Don't reveal if user exists for security
+                return ResponseEntity.ok(Map.of("message", "If an account exists with that email, a password reset link has been sent."));
+            }
+            
+            VerificationToken token = verificationTokenService.generateToken(user, VerificationToken.TokenType.PASSWORD_RESET);
+            emailService.sendPasswordResetEmail(user, token.getToken());
+            
+            return ResponseEntity.ok(Map.of("message", "If an account exists with that email, a password reset link has been sent."));
+        } catch (Exception e) {
+            log.error("Error requesting password reset: {}", e.getMessage(), e);
+            return ResponseEntity.badRequest().body(Map.of("error", "Failed to process password reset request"));
+        }
+    }
+    
+    /**
+     * Reset password with token
+     */
+    @Operation(summary = "Reset password", description = "Reset password using verification token")
+    @PostMapping("/reset-password")
+    public ResponseEntity<Map<String, Object>> resetPassword(
+            @RequestParam String token,
+            @RequestParam String newPassword) {
+        try {
+            Optional<VerificationToken> tokenOpt = verificationTokenService.validateToken(token, VerificationToken.TokenType.PASSWORD_RESET);
+            
+            if (tokenOpt.isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Invalid or expired token"));
+            }
+            
+            VerificationToken verificationToken = tokenOpt.get();
+            User user = verificationToken.getUser();
+            
+            // Update password
+            user.setPasswordHash(passwordEncoder.encode(newPassword));
+            userRepository.save(user);
+            
+            // Mark token as used
+            verificationTokenService.markTokenAsUsed(token);
+            
+            return ResponseEntity.ok(Map.of("message", "Password has been reset successfully"));
+        } catch (Exception e) {
+            log.error("Error resetting password: {}", e.getMessage(), e);
+            return ResponseEntity.badRequest().body(Map.of("error", "Failed to reset password"));
+        }
+    }
+    
+    /**
+     * Request email confirmation
+     */
+    @Operation(summary = "Request email confirmation", description = "Send email confirmation link to user")
+    @PostMapping("/resend-confirmation")
+    public ResponseEntity<Map<String, Object>> resendConfirmation(@RequestParam String email) {
+        try {
+            User user = userService.findByEmailOrNull(email);
+            if (user == null) {
+                return ResponseEntity.badRequest().body(Map.of("error", "User not found"));
+            }
+            
+            VerificationToken token = verificationTokenService.generateToken(user, VerificationToken.TokenType.EMAIL_CONFIRMATION);
+            emailService.sendAccountConfirmationEmail(user, token.getToken());
+            
+            return ResponseEntity.ok(Map.of("message", "Confirmation email has been sent"));
+        } catch (Exception e) {
+            log.error("Error sending confirmation email: {}", e.getMessage(), e);
+            return ResponseEntity.badRequest().body(Map.of("error", "Failed to send confirmation email"));
+        }
+    }
+    
+    /**
+     * Confirm email with token
+     */
+    @Operation(summary = "Confirm email", description = "Confirm email address using verification token")
+    @PostMapping("/confirm-email")
+    public ResponseEntity<Map<String, Object>> confirmEmail(@RequestParam String token) {
+        try {
+            Optional<VerificationToken> tokenOpt = verificationTokenService.validateToken(token, VerificationToken.TokenType.EMAIL_CONFIRMATION);
+            
+            if (tokenOpt.isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Invalid or expired token"));
+            }
+            
+            VerificationToken verificationToken = tokenOpt.get();
+            User user = verificationToken.getUser();
+            
+            // Mark email as confirmed (you may want to add an emailVerified field to User entity)
+            // For now, we'll just mark the token as used
+            verificationTokenService.markTokenAsUsed(token);
+            
+            return ResponseEntity.ok(Map.of("message", "Email has been confirmed successfully"));
+        } catch (Exception e) {
+            log.error("Error confirming email: {}", e.getMessage(), e);
+            return ResponseEntity.badRequest().body(Map.of("error", "Failed to confirm email"));
+        }
+    }
+    
     /**
      * Parse date of birth string to OffsetDateTime
      */

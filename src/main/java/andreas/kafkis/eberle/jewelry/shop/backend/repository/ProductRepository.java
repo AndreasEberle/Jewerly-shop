@@ -13,6 +13,9 @@ import andreas.kafkis.eberle.jewelry.shop.backend.entities.Product;
 @Repository
 public interface ProductRepository extends JpaRepository<Product, UUID>, JpaSpecificationExecutor<Product> {
     Optional<Product> findBySku(String sku);
+    Optional<Product> findBySkuIgnoreCase(String sku);
+    Optional<Product> findBySlug(String slug);
+    Optional<Product> findBySlugIgnoreCase(String slug);
     Optional<Product> findByName(String name);
     List<Product> findByActiveTrue();
     List<Product> findByActiveTrueOrderByCreatedAtDesc();

@@ -458,7 +458,8 @@ public class StorageService {
     }
     
     /**
-     * Clear all files from a specific S3 folder
+     * Clear all files from a specific S3 folder (but not the folder itself)
+     * Only deletes files UNDER the folder path, not the folder prefix key itself
      */
     public int clearS3Folder(String folderPath) throws IOException {
         if (!isS3Configured()) {
@@ -466,33 +467,38 @@ public class StorageService {
         }
         
         try {
-            log.info("Clearing S3 folder: {}", folderPath);
+            log.info("Clearing files under S3 folder: {}", folderPath);
             
             S3Client s3Client = createS3Client();
             String bucketName = systemConfigService.getS3BucketName();
             
-            // Ensure folder path ends with /
-            if (!folderPath.endsWith("/")) {
-                folderPath = folderPath + "/";
-            }
+            // Ensure folder path ends with / for prefix matching
+            String prefix = folderPath.endsWith("/") ? folderPath : folderPath + "/";
             
-            // List all objects with the folder prefix
+            // List all objects with the folder prefix (only files, not the folder "key" itself)
             ListObjectsV2Request listRequest = ListObjectsV2Request.builder()
                     .bucket(bucketName)
-                    .prefix(folderPath)
+                    .prefix(prefix)
                     .build();
             
             ListObjectsV2Response listResponse = s3Client.listObjectsV2(listRequest);
             List<S3Object> objects = listResponse.contents();
             
             if (objects.isEmpty()) {
-                log.info("No objects found in S3 folder: {}", folderPath);
+                log.info("No objects found under S3 folder: {}", folderPath);
                 return 0;
             }
             
-            // Delete all objects
+            // Delete all objects (only files, not the folder prefix itself)
+            // Filter out any key that exactly matches the folder path (if it exists as an object)
             int deletedCount = 0;
             for (S3Object object : objects) {
+                // Skip if this is the folder prefix itself (not a file under it)
+                if (object.key().equals(folderPath) || object.key().equals(prefix)) {
+                    log.debug("Skipping folder prefix key: {}", object.key());
+                    continue;
+                }
+                
                 try {
                     DeleteObjectRequest deleteRequest = DeleteObjectRequest.builder()
                             .bucket(bucketName)
@@ -501,13 +507,13 @@ public class StorageService {
                     
                     s3Client.deleteObject(deleteRequest);
                     deletedCount++;
-                    log.debug("Deleted S3 object: {}", object.key());
+                    log.debug("Deleted S3 file: {}", object.key());
                 } catch (Exception e) {
                     log.error("Failed to delete S3 object {}: {}", object.key(), e.getMessage());
                 }
             }
             
-            log.info("Successfully deleted {} objects from S3 folder: {}", deletedCount, folderPath);
+            log.info("Successfully deleted {} files from under S3 folder: {} (folder itself preserved)", deletedCount, folderPath);
             return deletedCount;
             
         } catch (Exception e) {

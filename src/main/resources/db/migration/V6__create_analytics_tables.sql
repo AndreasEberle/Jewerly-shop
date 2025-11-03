@@ -101,3 +101,6 @@ INSERT INTO system_metrics (metric_name, metric_value, metric_unit, tags, create
 ('active_sessions', 0, 'count', '{"type": "gauge"}', NOW());
 
 
+
+
+

@@ -1,0 +1,19 @@
+{
+  "name": "Pearl Drop Earrings",
+  "sku": "TEST-EARRINGS-005",
+  "description": "Experience the timeless elegance of our Pearl Drop Earrings. \n\nCrafted with meticulous attention to detail, this exquisite piece features:\n• Premium White Gold construction for lasting beauty\n• Genuine cultured pearls with brilliant luster\n• Elegant drop design that elongates the face\n\nPerfect for formal occasions or as a meaningful gift, this piece showcases exceptional craftsmanship and design.\n\nSpecifications:\n• Material: 14k White Gold\n• Color: White Gold with Pearl\n• Weight: 6.7 grams\n• Gemstone: Cultured Pearl\n\nCare Instructions:\n• Clean gently with a soft cloth\n• Store in a jewelry box to prevent tarnishing\n• Avoid contact with harsh chemicals and perfumes\n• Wipe pearls with a damp cloth after wearing\n\nElevate your jewelry collection with this stunning piece that combines classic design with modern sophistication.",
+  "price": 449.99,
+  "quantity": 4,
+  "weightGrams": 6.7,
+  "material": "Gold",
+  "color": "White Gold",
+  "finish": "Polished",
+  "gemstone": "Pearl",
+  "category": "Earrings",
+  "tags": ["pearl", "drop", "white gold", "elegant"],
+  "specialOffer": false,
+  "active": true
+}
+
+
+

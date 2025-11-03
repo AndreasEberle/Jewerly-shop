@@ -13,3 +13,6 @@ COMMENT ON COLUMN system_config.config_key IS 'Configuration key identifier';
 COMMENT ON COLUMN system_config.config_value IS 'Configuration value';
 COMMENT ON COLUMN system_config.description IS 'Human-readable description of the configuration';
 COMMENT ON COLUMN system_config.is_active IS 'Whether this configuration is currently active';
+
+
+

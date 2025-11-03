@@ -143,7 +143,7 @@ public class SystemConfigService {
     }
     
     // Helper method to get config value with default
-    private String getConfigValue(String configKey, String defaultValue) {
+    public String getConfigValue(String configKey, String defaultValue) {
         String value = getConfigValue(configKey);
         return value != null ? value : defaultValue;
     }

@@ -15,9 +15,12 @@ import andreas.kafkis.eberle.jewelry.shop.backend.dto.PaymentDTO;
 import andreas.kafkis.eberle.jewelry.shop.backend.dto.PaymentRequest;
 import andreas.kafkis.eberle.jewelry.shop.backend.dto.PaymentResponse;
 import andreas.kafkis.eberle.jewelry.shop.backend.entities.Order;
+import andreas.kafkis.eberle.jewelry.shop.backend.entities.OrderItem;
 import andreas.kafkis.eberle.jewelry.shop.backend.entities.Payment;
+import andreas.kafkis.eberle.jewelry.shop.backend.entities.Product;
 import andreas.kafkis.eberle.jewelry.shop.backend.repository.OrderRepository;
 import andreas.kafkis.eberle.jewelry.shop.backend.repository.PaymentRepository;
+import andreas.kafkis.eberle.jewelry.shop.backend.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -28,6 +31,8 @@ public class PaymentService {
     
     private final PaymentRepository paymentRepository;
     private final OrderRepository orderRepository;
+    private final ProductRepository productRepository;
+    private final StripeService stripeService;
     
     public Page<PaymentDTO> getAllPayments(Pageable pageable, String status, String paymentMethod, String customerEmail) {
         Specification<Payment> spec = Specification.where(null);
@@ -135,13 +140,18 @@ public class PaymentService {
             payment.setTransactionId(UUID.randomUUID().toString());
             payment.setNotes(request.getNotes());
             
-            // For demo purposes, simulate payment processing
-            // In a real implementation, this would integrate with payment gateways
-            if ("demo".equals(request.getPaymentMethod())) {
+            // Handle different payment methods
+            if ("STRIPE".equalsIgnoreCase(request.getPaymentMethod()) || "stripe".equalsIgnoreCase(request.getPaymentMethod())) {
+                // Stripe payment - should be handled via payment intent confirmation
+                // This method is kept for backward compatibility
+                payment.setStatus(Payment.PaymentStatus.PENDING);
+                payment.setNotes("Stripe payment - awaiting confirmation");
+            } else if ("demo".equals(request.getPaymentMethod())) {
+                // Demo payment
                 payment.setStatus(Payment.PaymentStatus.COMPLETED);
                 payment.setProcessedAt(LocalDateTime.now());
             } else {
-                // Simulate processing delay and success
+                // Default: simulate processing
                 payment.setStatus(Payment.PaymentStatus.COMPLETED);
                 payment.setProcessedAt(LocalDateTime.now());
             }
@@ -149,11 +159,13 @@ public class PaymentService {
             // Save payment
             Payment savedPayment = paymentRepository.save(payment);
             
-            // Update order status
-            order.setStatus(Order.OrderStatus.CONFIRMED);
-            orderRepository.save(order);
+            // Update order status only if payment is completed
+            if (savedPayment.getStatus() == Payment.PaymentStatus.COMPLETED) {
+                order.setStatus(Order.OrderStatus.CONFIRMED);
+                orderRepository.save(order);
+            }
             
-            log.info("Payment processed successfully for order {}: {}", order.getOrderNumber(), savedPayment.getId());
+            log.info("Payment processed for order {}: {}", order.getOrderNumber(), savedPayment.getId());
             
             return PaymentResponse.builder()
                     .paymentId(savedPayment.getId())
@@ -168,6 +180,76 @@ public class PaymentService {
                     
         } catch (Exception e) {
             log.error("Error processing payment: {}", e.getMessage(), e);
+            return PaymentResponse.builder()
+                    .status("FAILED")
+                    .failureReason(e.getMessage())
+                    .build();
+        }
+    }
+    
+    /**
+     * Process Stripe payment confirmation
+     */
+    public PaymentResponse processStripePayment(UUID orderId, String paymentIntentId) {
+        try {
+            // Fetch order with order items eagerly loaded
+            Order order = orderRepository.findById(orderId)
+                    .orElseThrow(() -> new RuntimeException("Order not found with ID: " + orderId));
+            
+            // Force load order items if lazy
+            if (order.getOrderItems() != null) {
+                order.getOrderItems().size(); // Trigger lazy loading
+            }
+            
+            // Confirm payment with Stripe
+            Map<String, Object> stripeResult = stripeService.confirmPaymentIntent(paymentIntentId);
+            
+            Boolean success = (Boolean) stripeResult.get("success");
+            if (Boolean.TRUE.equals(success)) {
+                // Create or update payment entity
+                Payment payment = order.getPayment();
+                if (payment == null) {
+                    payment = new Payment();
+                    payment.setOrder(order);
+                }
+                
+                payment.setAmount(order.getTotalAmount());
+                payment.setPaymentMethod("STRIPE");
+                payment.setStatus(Payment.PaymentStatus.COMPLETED);
+                payment.setTransactionId(paymentIntentId);
+                payment.setProcessedAt(LocalDateTime.now());
+                payment.setNotes("Stripe payment confirmed");
+                
+                Payment savedPayment = paymentRepository.save(payment);
+                
+                // Update order status
+                Order.OrderStatus oldStatus = order.getStatus();
+                order.setStatus(Order.OrderStatus.CONFIRMED);
+                orderRepository.save(order);
+                
+                // Update product inventory - decrease quantities when order is confirmed
+                if (oldStatus == Order.OrderStatus.PENDING) {
+                    updateProductInventory(order);
+                }
+                
+                log.info("Stripe payment confirmed for order {}: {}", order.getOrderNumber(), paymentIntentId);
+                
+                return PaymentResponse.builder()
+                        .paymentId(savedPayment.getId())
+                        .orderId(order.getId())
+                        .paymentMethod(savedPayment.getPaymentMethod())
+                        .amount(savedPayment.getAmount())
+                        .status(savedPayment.getStatus().name())
+                        .transactionId(savedPayment.getTransactionId())
+                        .processedAt(savedPayment.getProcessedAt())
+                        .notes(savedPayment.getNotes())
+                        .build();
+            } else {
+                throw new RuntimeException("Payment not confirmed: " + stripeResult.get("error"));
+            }
+            
+        } catch (Exception e) {
+            log.error("Error processing Stripe payment: {}", e.getMessage(), e);
             return PaymentResponse.builder()
                     .status("FAILED")
                     .failureReason(e.getMessage())
@@ -242,6 +324,41 @@ public class PaymentService {
                     .status("FAILED")
                     .failureReason(e.getMessage())
                     .build();
+        }
+    }
+    
+    /**
+     * Update product inventory quantities when order is confirmed
+     * Decreases product quantities by the ordered amounts
+     */
+    private void updateProductInventory(Order order) {
+        // Force load order items if lazy
+        if (order.getOrderItems() != null) {
+            order.getOrderItems().size(); // Trigger lazy loading
+        }
+        
+        if (order.getOrderItems() == null || order.getOrderItems().isEmpty()) {
+            log.warn("Order {} has no items, skipping inventory update", order.getId());
+            return;
+        }
+        
+        for (OrderItem item : order.getOrderItems()) {
+            // Force load product if lazy
+            Product product = item.getProduct();
+            if (product == null) {
+                log.warn("OrderItem {} has no product, skipping", item.getId());
+                continue;
+            }
+            
+            int currentQuantity = product.getQuantity() != null ? product.getQuantity() : 0;
+            int quantityToDecrease = item.getQuantity();
+            int newQuantity = Math.max(0, currentQuantity - quantityToDecrease);
+            
+            product.setQuantity(newQuantity);
+            productRepository.save(product);
+            
+            log.info("Decreased inventory for product {} ({}): {} -> {} (order {})", 
+                product.getName(), product.getId(), currentQuantity, newQuantity, order.getOrderNumber());
         }
     }
 }

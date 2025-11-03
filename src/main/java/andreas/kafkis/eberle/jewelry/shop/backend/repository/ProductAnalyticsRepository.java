@@ -40,3 +40,6 @@ public interface ProductAnalyticsRepository extends JpaRepository<ProductAnalyti
 }
 
 
+
+
+

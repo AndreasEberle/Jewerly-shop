@@ -1,0 +1,20 @@
+{
+  "name": "Rose Gold Tennis Bracelet",
+  "sku": "TEST-BRACELET-004",
+  "description": "Experience the timeless elegance of our Rose Gold Tennis Bracelet. \n\nCrafted with meticulous attention to detail, this exquisite piece features:\n• Premium 14k Rose Gold construction for lasting beauty\n• Continuous diamond-accented design for maximum sparkle\n• Secure clasp for comfortable, worry-free wear\n\nPerfect for special occasions or as a meaningful gift, this piece showcases exceptional craftsmanship and design.\n\nSpecifications:\n• Material: 14k Rose Gold\n• Color: Rose Gold\n• Weight: 18.2 grams\n\nCare Instructions:\n• Clean gently with a soft cloth and jewelry cleaner\n• Store in a jewelry box to prevent tarnishing\n• Avoid contact with harsh chemicals\n• Professional cleaning recommended annually\n\nElevate your jewelry collection with this stunning piece that combines classic design with modern sophistication.",
+  "price": 1899.99,
+  "quantity": 2,
+  "weightGrams": 18.2,
+  "material": "Gold",
+  "color": "Rose Gold",
+  "finish": "High Polish",
+  "category": "Bracelets",
+  "tags": ["tennis", "rose gold", "diamond", "luxury"],
+  "specialOffer": true,
+  "specialOfferPrice": 1599.99,
+  "specialOfferDescriptions": ["Limited Edition", "Holiday Special"],
+  "active": true
+}
+
+
+

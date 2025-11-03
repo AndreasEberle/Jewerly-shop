@@ -13,6 +13,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import andreas.kafkis.eberle.jewelry.shop.backend.controller.AdminProductOrderController;
@@ -31,9 +32,11 @@ import andreas.kafkis.eberle.jewelry.shop.backend.repository.ProductImageReposit
 import andreas.kafkis.eberle.jewelry.shop.backend.repository.ProductRepository;
 import andreas.kafkis.eberle.jewelry.shop.backend.repository.TagRepository;
 import jakarta.persistence.criteria.Predicate;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @Transactional
+@Slf4j
 public class ProductService {
 	
 	@Autowired
@@ -56,6 +59,12 @@ public class ProductService {
     
     @Autowired
     private StorageService storageService;
+    
+    @Autowired
+    private CartReservationService cartReservationService;
+    
+    @Autowired
+    private InventoryService inventoryService;
 
     public Product create(Product product) {
         return productRepository.save(product);
@@ -265,6 +274,7 @@ public class ProductService {
     /**
      * Create a new product with all relationships
      */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public ProductDTO createProduct(CreateProductRequest request) {
         // Validate unique name
         if (productRepository.findByName(request.getName()).isPresent()) {
@@ -276,10 +286,21 @@ public class ProductService {
             throw new IllegalArgumentException("Product SKU already exists: " + request.getSku());
         }
         
+        // Generate slug from product name
+        String slug = generateSlug(request.getName());
+        // Ensure slug is unique
+        int counter = 1;
+        String originalSlug = slug;
+        while (productRepository.findBySlug(slug).isPresent()) {
+            slug = originalSlug + "-" + counter;
+            counter++;
+        }
+        
         // Create the product entity
         Product product = Product.builder()
                 .name(request.getName())
                 .sku(request.getSku())
+                .slug(slug)
                 .description(request.getDescription())
                 .priceCents(request.getPrice().multiply(BigDecimal.valueOf(100)).longValue())
                 .baseCurrency(request.getBaseCurrency())
@@ -326,6 +347,19 @@ public class ProductService {
         }
         
         Product savedProduct = productRepository.save(product);
+        
+        // Flush to ensure product is persisted before creating inventory
+        productRepository.flush();
+        
+        // Initialize inventory for the new product with the specified quantity
+        try {
+            inventoryService.setStock(savedProduct.getId(), request.getQuantity());
+            log.info("Initialized inventory for product {} with quantity {}", savedProduct.getId(), request.getQuantity());
+        } catch (Exception e) {
+            log.error("Failed to initialize inventory for product {}: {}", savedProduct.getId(), e.getMessage(), e);
+            // Don't fail product creation if inventory initialization fails, but log it
+        }
+        
         return convertToDTO(savedProduct);
     }
     
@@ -368,6 +402,19 @@ public class ProductService {
         }
         if (request.getSku() != null) {
             product.setSku(request.getSku());
+        }
+        // Update slug if name changed
+        if (request.getName() != null && !request.getName().equals(product.getName())) {
+            String slug = generateSlug(request.getName());
+            // Ensure slug is unique
+            int counter = 1;
+            String originalSlug = slug;
+            while (productRepository.findBySlug(slug).isPresent() && 
+                   !productRepository.findBySlug(slug).get().getId().equals(product.getId())) {
+                slug = originalSlug + "-" + counter;
+                counter++;
+            }
+            product.setSlug(slug);
         }
         if (request.getDescription() != null) {
             product.setDescription(request.getDescription());
@@ -441,6 +488,30 @@ public class ProductService {
     public ProductDTO getProductById(UUID productId) {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + productId));
+        return convertToDTO(product);
+    }
+    
+    /**
+     * Get product by SKU as DTO (case-insensitive)
+     */
+    @Transactional(readOnly = true)
+    public ProductDTO getProductBySku(String sku) {
+        // First try exact match, then try case-insensitive
+        Product product = productRepository.findBySku(sku)
+                .orElseGet(() -> productRepository.findBySkuIgnoreCase(sku)
+                        .orElseThrow(() -> new ResourceNotFoundException("Product not found with SKU: " + sku)));
+        return convertToDTO(product);
+    }
+    
+    /**
+     * Get product by slug as DTO (case-insensitive)
+     */
+    @Transactional(readOnly = true)
+    public ProductDTO getProductBySlug(String slug) {
+        // First try exact match, then try case-insensitive
+        Product product = productRepository.findBySlug(slug)
+                .orElseGet(() -> productRepository.findBySlugIgnoreCase(slug)
+                        .orElseThrow(() -> new ResourceNotFoundException("Product not found with slug: " + slug)));
         return convertToDTO(product);
     }
     
@@ -552,14 +623,25 @@ public class ProductService {
      * Find or create a tag by name
      */
     private Tag findOrCreateTag(String tagName) {
-        return tagRepository.findByName(tagName)
-                .orElseGet(() -> {
-                    Tag tag = Tag.builder()
-                            .name(tagName)
-                            .slug(tagName.toLowerCase().replaceAll("\\s+", "-"))
-                            .build();
-                    return tagRepository.save(tag);
-                });
+        // First try to find by name (exact match)
+        Optional<Tag> tagByName = tagRepository.findByName(tagName);
+        if (tagByName.isPresent()) {
+            return tagByName.get();
+        }
+        
+        // If not found by name, check by slug (to avoid duplicate slug constraint violations)
+        String slug = tagName.toLowerCase().replaceAll("\\s+", "-");
+        Optional<Tag> tagBySlug = tagRepository.findBySlug(slug);
+        if (tagBySlug.isPresent()) {
+            return tagBySlug.get();
+        }
+        
+        // Tag doesn't exist, create it
+        Tag tag = Tag.builder()
+                .name(tagName)
+                .slug(slug)
+                .build();
+        return tagRepository.save(tag);
     }
     
     /**
@@ -569,9 +651,13 @@ public class ProductService {
         // Load images for this product
         List<ProductImage> images = productImageRepository.findByProductOrderBySortOrder(product);
         
+        // Calculate available quantity (considering cart reservations)
+        int availableQuantity = cartReservationService.getAvailableStock(product.getId());
+        
         return ProductDTO.builder()
                 .id(product.getId())
                 .sku(product.getSku())
+                .slug(product.getSlug())
                 .name(product.getName())
                 .description(product.getDescription())
                 .price(product.getPrice())
@@ -584,6 +670,7 @@ public class ProductService {
                 .color(product.getColor())
                 .finish(product.getFinish())
                 .quantity(product.getQuantity())
+                .availableQuantity(availableQuantity)
                 .active(product.isActive())
                 .showInFeatured(product.getShowInFeatured())
                 .specialOffer(product.isSpecialOffer())
@@ -619,6 +706,23 @@ public class ProductService {
                 .mimeType(image.getMimeType())
                 .createdAt(image.getCreatedAt())
                 .build();
+    }
+    
+    /**
+     * Generate a URL-friendly slug from a product name
+     */
+    private String generateSlug(String name) {
+        if (name == null || name.trim().isEmpty()) {
+            return "";
+        }
+        // Convert to lowercase, replace spaces and special characters with hyphens
+        String slug = name.toLowerCase()
+                .trim()
+                .replaceAll("[^a-z0-9\\s-]", "") // Remove special characters except spaces and hyphens
+                .replaceAll("\\s+", "-") // Replace spaces with hyphens
+                .replaceAll("-+", "-") // Replace multiple hyphens with single hyphen
+                .replaceAll("^-|-$", ""); // Remove leading/trailing hyphens
+        return slug;
     }
 }
 

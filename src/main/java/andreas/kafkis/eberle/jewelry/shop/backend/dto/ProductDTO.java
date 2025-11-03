@@ -18,6 +18,7 @@ import lombok.NoArgsConstructor;
 public class ProductDTO {
     private UUID id;
     private String sku;
+    private String slug;
     private String name;
     private String description;
     private BigDecimal price;
@@ -30,6 +31,7 @@ public class ProductDTO {
     private String color;
     private String finish;
     private Integer quantity;
+    private Integer availableQuantity; // Available after considering reservations
     private boolean active;
     private boolean showInFeatured;
     private OffsetDateTime createdAt;

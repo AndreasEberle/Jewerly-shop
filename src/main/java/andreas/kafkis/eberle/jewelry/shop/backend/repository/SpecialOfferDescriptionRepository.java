@@ -28,3 +28,6 @@ public interface SpecialOfferDescriptionRepository extends JpaRepository<Special
     
     boolean existsBySlug(String slug);
 }
+
+
+

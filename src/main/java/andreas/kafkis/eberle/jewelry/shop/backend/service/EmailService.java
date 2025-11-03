@@ -26,6 +26,9 @@ public class EmailService {
     @Autowired
     private TemplateEngine templateEngine;
 
+    @Autowired
+    private SystemConfigService systemConfigService;
+
     @Value("${email.from}")
     private String fromEmail;
 
@@ -33,23 +36,52 @@ public class EmailService {
     private String adminEmail;
 
     /**
-     * Send order confirmation email
+     * Get config value with fallback
+     */
+    private String getConfigValue(String key, String defaultValue) {
+        String value = systemConfigService.getConfigValue(key);
+        return value != null && !value.isEmpty() ? value : defaultValue;
+    }
+
+    /**
+     * Send order confirmation email with configurable values
      */
     public void sendOrderConfirmation(Order order) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
+            // Get configurable values
+            String shopName = getConfigValue("email.order_confirmation.shop_name", "Jewelry Shop");
+            String estimatedDeliveryDays = getConfigValue("email.order_confirmation.estimated_delivery_days", "5-7");
+            String supportEmail = getConfigValue("email.support.email", adminEmail);
+            String supportPhone = getConfigValue("email.support.phone", "");
+            String companyAddress = getConfigValue("email.company.address", "");
+            
+            // Calculate estimated delivery date
+            LocalDateTime estimatedDelivery = order.getOrderDate().plusDays(Long.parseLong(estimatedDeliveryDays.split("-")[0]));
+            String estimatedDeliveryDate = estimatedDelivery.format(DateTimeFormatter.ofPattern("MMMM dd, yyyy"));
+
             helper.setFrom(fromEmail);
             helper.setTo(order.getCustomer().getEmail());
-            helper.setSubject("Order Confirmation - " + order.getOrderNumber());
+            helper.setSubject(getConfigValue("email.order_confirmation.subject", shopName + " - Order Confirmation #" + order.getOrderNumber()));
 
             // Prepare template context
             Context context = new Context();
             context.setVariable("order", order);
             context.setVariable("customer", order.getCustomer());
             context.setVariable("orderDate", order.getOrderDate().format(DateTimeFormatter.ofPattern("MMMM dd, yyyy")));
-            context.setVariable("totalAmount", order.getTotalAmount().toString());
+            context.setVariable("estimatedDeliveryDate", estimatedDeliveryDate);
+            context.setVariable("estimatedDeliveryDays", estimatedDeliveryDays);
+            context.setVariable("totalAmount", order.getTotalAmount());
+            context.setVariable("subtotal", order.getSubtotal());
+            context.setVariable("taxAmount", order.getTaxAmount());
+            context.setVariable("shippingAmount", order.getShippingAmount());
+            context.setVariable("shopName", shopName);
+            context.setVariable("supportEmail", supportEmail);
+            context.setVariable("supportPhone", supportPhone);
+            context.setVariable("companyAddress", companyAddress);
+            context.setVariable("footerText", getConfigValue("email.footer.text", "Thank you for shopping with us!"));
 
             // Generate HTML content
             String htmlContent = templateEngine.process("order-confirmation", context);
@@ -94,19 +126,89 @@ public class EmailService {
      */
     public void sendWelcomeEmail(User user) {
         try {
-            SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom(fromEmail);
-            message.setTo(user.getEmail());
-            message.setSubject("Welcome to Jewelry Shop!");
-            message.setText("Dear " + user.getFirstName() + ",\n\n" +
-                    "Welcome to our jewelry shop! We're excited to have you as a customer.\n\n" +
-                    "You can now browse our beautiful collection of jewelry and place orders.\n\n" +
-                    "Best regards,\n" +
-                    "The Jewelry Shop Team");
+            String shopName = getConfigValue("email.welcome.shop_name", "Jewelry Shop");
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+            helper.setFrom(fromEmail);
+            helper.setTo(user.getEmail());
+            helper.setSubject(getConfigValue("email.welcome.subject", "Welcome to " + shopName + "!"));
+
+            Context context = new Context();
+            context.setVariable("user", user);
+            context.setVariable("shopName", shopName);
+            context.setVariable("supportEmail", getConfigValue("email.support.email", adminEmail));
+
+            String htmlContent = templateEngine.process("welcome-email", context);
+            helper.setText(htmlContent, true);
 
             mailSender.send(message);
         } catch (Exception e) {
             System.err.println("Failed to send welcome email: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Send account confirmation email with verification link
+     */
+    public void sendAccountConfirmationEmail(User user, String confirmationToken) {
+        try {
+            String shopName = getConfigValue("email.account_confirmation.shop_name", "Jewelry Shop");
+            String baseUrl = getConfigValue("email.base_url", "http://localhost:3000");
+            String confirmationLink = baseUrl + "/confirm-email?token=" + confirmationToken;
+
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+            helper.setFrom(fromEmail);
+            helper.setTo(user.getEmail());
+            helper.setSubject(getConfigValue("email.account_confirmation.subject", "Please confirm your " + shopName + " account"));
+
+            Context context = new Context();
+            context.setVariable("user", user);
+            context.setVariable("shopName", shopName);
+            context.setVariable("confirmationLink", confirmationLink);
+            context.setVariable("confirmationToken", confirmationToken);
+            context.setVariable("expirationHours", getConfigValue("email.account_confirmation.token_expiration_hours", "24"));
+
+            String htmlContent = templateEngine.process("account-confirmation", context);
+            helper.setText(htmlContent, true);
+
+            mailSender.send(message);
+        } catch (Exception e) {
+            System.err.println("Failed to send account confirmation email: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Send password reset email
+     */
+    public void sendPasswordResetEmail(User user, String resetToken) {
+        try {
+            String shopName = getConfigValue("email.password_reset.shop_name", "Jewelry Shop");
+            String baseUrl = getConfigValue("email.base_url", "http://localhost:3000");
+            String resetLink = baseUrl + "/reset-password?token=" + resetToken;
+
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+            helper.setFrom(fromEmail);
+            helper.setTo(user.getEmail());
+            helper.setSubject(getConfigValue("email.password_reset.subject", shopName + " - Password Reset Request"));
+
+            Context context = new Context();
+            context.setVariable("user", user);
+            context.setVariable("shopName", shopName);
+            context.setVariable("resetLink", resetLink);
+            context.setVariable("resetToken", resetToken);
+            context.setVariable("expirationMinutes", getConfigValue("email.password_reset.token_expiration_minutes", "60"));
+
+            String htmlContent = templateEngine.process("password-reset", context);
+            helper.setText(htmlContent, true);
+
+            mailSender.send(message);
+        } catch (Exception e) {
+            System.err.println("Failed to send password reset email: " + e.getMessage());
         }
     }
 

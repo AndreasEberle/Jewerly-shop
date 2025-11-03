@@ -31,6 +31,8 @@ public class CreateOrderRequest {
     
     private String notes;
     
+    private String discountCode;
+    
     @Data
     @Builder
     @AllArgsConstructor
