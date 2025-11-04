@@ -2,20 +2,16 @@ package andreas.kafkis.eberle.jewelry.shop.backend.service;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.math.BigDecimal;
-import java.time.format.DateTimeFormatter;
-
 import java.time.OffsetDateTime;
-import java.util.List;
-import java.util.stream.Collectors;
+import java.time.format.DateTimeFormatter;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
-
-import java.io.InputStream;
 
 import com.itextpdf.io.font.constants.StandardFonts;
 import com.itextpdf.kernel.font.PdfFont;

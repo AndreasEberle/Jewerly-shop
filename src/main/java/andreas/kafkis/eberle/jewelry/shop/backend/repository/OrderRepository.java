@@ -22,8 +22,8 @@ public interface OrderRepository extends JpaRepository<Order, UUID>, JpaSpecific
     @EntityGraph(attributePaths = {"orderItems", "payment", "shippingAddress", "billingAddress", "customer"})
     Page<Order> findByStatusOrderByOrderDateDesc(Order.OrderStatus status, Pageable pageable);
     
-    @Query(value = "SELECT COUNT(o.id) FROM orders o WHERE o.status = CAST(:status AS order_status)", nativeQuery = true)
-    long countByStatus(@Param("status") String status);
+    @Query("SELECT COUNT(o) FROM Order o WHERE o.status = :status")
+    long countByStatus(@Param("status") Order.OrderStatus status);
     
     long countByCreatedAtAfter(OffsetDateTime date);
     

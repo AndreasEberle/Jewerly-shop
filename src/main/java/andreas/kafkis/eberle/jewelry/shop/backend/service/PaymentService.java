@@ -10,6 +10,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.scheduling.annotation.Async;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,7 +31,7 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class PaymentService {
+public class PaymentService implements ApplicationContextAware {
     
     private final PaymentRepository paymentRepository;
     private final OrderRepository orderRepository;
@@ -38,9 +40,17 @@ public class PaymentService {
     private final EmailService emailService;
     private final InvoiceService invoiceService;
     
-    // Self-injection for async method calls (needed for @Async to work when called from same class)
-    @org.springframework.beans.factory.annotation.Autowired
-    private PaymentService self;
+    private ApplicationContext applicationContext;
+    
+    @Override
+    public void setApplicationContext(ApplicationContext applicationContext) {
+        this.applicationContext = applicationContext;
+    }
+    
+    // Get the proxy version of this service for async calls
+    private PaymentService getSelf() {
+        return applicationContext.getBean(PaymentService.class);
+    }
     
     public Page<PaymentDTO> getAllPayments(Pageable pageable, String status, String paymentMethod, String customerEmail) {
         Specification<Payment> spec = Specification.where(null);
@@ -258,13 +268,8 @@ public class PaymentService {
                 log.info("Stripe payment confirmed for order {}: {}", order.getOrderNumber(), paymentIntentId);
                 
                 // Send order confirmation and invoice emails asynchronously (non-blocking)
-                // Use self-injected proxy to ensure @Async works (or fallback to direct call if not injected)
-                if (self != null) {
-                    self.sendOrderEmailsAsync(order);
-                } else {
-                    // Fallback: call directly if self-injection not available
-                    sendOrderEmailsAsync(order);
-                }
+                // Get the proxy version of this service to ensure @Async works
+                getSelf().sendOrderEmailsAsync(order);
                 
                 return PaymentResponse.builder()
                         .paymentId(savedPayment.getId())
