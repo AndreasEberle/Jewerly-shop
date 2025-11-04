@@ -128,6 +128,7 @@ public class AuthController {
                     .phoneNumber(request.getPhoneNumber())
                     .dateOfBirth(parseDateOfBirth(request.getDateOfBirth()))
                     .gender(request.getGender())
+                    .newsletterSubscribed(request.getNewsletterSubscribed() != null ? request.getNewsletterSubscribed() : false)
                     .active(true)
                     .build();
 

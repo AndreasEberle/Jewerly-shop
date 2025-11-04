@@ -48,6 +48,8 @@ public class RegisterRequest {
     @Pattern(regexp = "^(male|female|other|prefer-not-to-say)$", message = "Gender must be one of: male, female, other, prefer-not-to-say")
     private String gender;
     
+    private Boolean newsletterSubscribed;
+    
     private AddressRequest address;
     
     @Data

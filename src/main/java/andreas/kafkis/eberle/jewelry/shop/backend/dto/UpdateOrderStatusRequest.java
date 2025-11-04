@@ -13,12 +13,14 @@ import lombok.NoArgsConstructor;
 @Builder
 public class UpdateOrderStatusRequest {
     @NotBlank(message = "Status is required")
-    @Pattern(regexp = "^(CREATED|PAID|SHIPPED|DELIVERED|CANCELLED)$", 
-             message = "Status must be one of: CREATED, PAID, SHIPPED, DELIVERED, CANCELLED")
+    @Pattern(regexp = "^(PENDING|CONFIRMED|PROCESSING|SHIPPED|DELIVERED|CANCELLED|REFUNDED)$", 
+             message = "Status must be one of: PENDING, CONFIRMED, PROCESSING, SHIPPED, DELIVERED, CANCELLED, REFUNDED")
     private String status;
     
     private String trackingNumber;
     private String carrier;
+    private String trackingLink;
+    private Integer estimatedDeliveryDays;
     private String notes;
 }
 

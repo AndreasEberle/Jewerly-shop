@@ -5,6 +5,7 @@ import java.time.format.DateTimeFormatter;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
@@ -256,6 +257,52 @@ public class EmailService {
             mailSender.send(message);
         } catch (MessagingException e) {
             System.err.println("Failed to send payment confirmation email: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Send invoice email with PDF attachment
+     */
+    public void sendInvoiceEmail(Order order, byte[] invoicePDF) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+            // Get configurable values
+            String shopName = getConfigValue("email.order_confirmation.shop_name", "Jewelry Shop");
+            String supportEmail = getConfigValue("email.support.email", adminEmail);
+            String supportPhone = getConfigValue("email.support.phone", "");
+            String companyAddress = getConfigValue("email.company.address", "");
+
+            helper.setFrom(fromEmail);
+            helper.setTo(order.getCustomer().getEmail());
+            helper.setSubject(getConfigValue("email.invoice.subject", shopName + " - Invoice #" + order.getOrderNumber()));
+
+            // Prepare template context
+            Context context = new Context();
+            context.setVariable("order", order);
+            context.setVariable("customer", order.getCustomer());
+            context.setVariable("orderDate", order.getOrderDate().format(DateTimeFormatter.ofPattern("MMMM dd, yyyy")));
+            context.setVariable("totalAmount", order.getTotalAmount());
+            context.setVariable("currency", order.getCurrency());
+            context.setVariable("shopName", shopName);
+            context.setVariable("supportEmail", supportEmail);
+            context.setVariable("supportPhone", supportPhone);
+            context.setVariable("companyAddress", companyAddress);
+            context.setVariable("footerText", getConfigValue("email.footer.text", "Thank you for shopping with us!"));
+
+            // Generate HTML content
+            String htmlContent = templateEngine.process("invoice-email", context);
+            helper.setText(htmlContent, true);
+
+            // Attach PDF invoice
+            helper.addAttachment("Invoice_" + order.getOrderNumber() + ".pdf", 
+                    new ByteArrayResource(invoicePDF));
+
+            mailSender.send(message);
+        } catch (MessagingException e) {
+            // Log error but don't fail the order process
+            System.err.println("Failed to send invoice email: " + e.getMessage());
         }
     }
 

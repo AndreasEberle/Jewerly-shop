@@ -2,11 +2,14 @@ package andreas.kafkis.eberle.jewelry.shop.backend.controller;
 
 import java.util.UUID;
 
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -23,6 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 import andreas.kafkis.eberle.jewelry.shop.backend.dto.CreateOrderRequest;
 import andreas.kafkis.eberle.jewelry.shop.backend.dto.OrderResponse;
 import andreas.kafkis.eberle.jewelry.shop.backend.entities.Order;
+import andreas.kafkis.eberle.jewelry.shop.backend.service.InvoiceService;
 import andreas.kafkis.eberle.jewelry.shop.backend.service.OrderService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +37,7 @@ import lombok.RequiredArgsConstructor;
 public class OrderController {
 
     private final OrderService orderService;
+    private final InvoiceService invoiceService;
 
     /**
      * Create a new order
@@ -52,6 +57,43 @@ public class OrderController {
         String userEmail = getCurrentUserEmail();
         OrderResponse order = orderService.getOrder(orderId, userEmail);
         return ResponseEntity.ok(order);
+    }
+
+    /**
+     * Download invoice PDF for an order
+     */
+    @GetMapping("/{orderId}/invoice")
+    public ResponseEntity<ByteArrayResource> downloadInvoice(@PathVariable UUID orderId) {
+        try {
+            String userEmail = getCurrentUserEmail();
+            OrderResponse orderResponse = orderService.getOrder(orderId, userEmail);
+            
+            // Get the order entity to generate invoice
+            Order order = orderService.getOrderEntityById(orderId);
+            if (order == null) {
+                return ResponseEntity.notFound().build();
+            }
+            
+            // Verify order belongs to user (unless admin)
+            if (!order.getCustomer().getEmail().equals(userEmail) && 
+                !SecurityContextHolder.getContext().getAuthentication().getAuthorities()
+                    .stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+            }
+            
+            byte[] invoicePDF = invoiceService.generateInvoicePDF(order);
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.add(HttpHeaders.CONTENT_DISPOSITION, 
+                    "attachment; filename=Invoice_" + order.getOrderNumber() + ".pdf");
+            
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .contentType(MediaType.APPLICATION_PDF)
+                    .body(new ByteArrayResource(invoicePDF));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 
     /**

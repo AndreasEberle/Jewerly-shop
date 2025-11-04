@@ -9,6 +9,7 @@ import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,6 +35,12 @@ public class PaymentService {
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
     private final StripeService stripeService;
+    private final EmailService emailService;
+    private final InvoiceService invoiceService;
+    
+    // Self-injection for async method calls (needed for @Async to work when called from same class)
+    @org.springframework.beans.factory.annotation.Autowired
+    private PaymentService self;
     
     public Page<PaymentDTO> getAllPayments(Pageable pageable, String status, String paymentMethod, String customerEmail) {
         Specification<Payment> spec = Specification.where(null);
@@ -250,6 +257,15 @@ public class PaymentService {
                 
                 log.info("Stripe payment confirmed for order {}: {}", order.getOrderNumber(), paymentIntentId);
                 
+                // Send order confirmation and invoice emails asynchronously (non-blocking)
+                // Use self-injected proxy to ensure @Async works (or fallback to direct call if not injected)
+                if (self != null) {
+                    self.sendOrderEmailsAsync(order);
+                } else {
+                    // Fallback: call directly if self-injection not available
+                    sendOrderEmailsAsync(order);
+                }
+                
                 return PaymentResponse.builder()
                         .paymentId(savedPayment.getId())
                         .orderId(order.getId())
@@ -378,6 +394,28 @@ public class PaymentService {
             
             log.info("Decreased inventory for product {} ({}): {} -> {} (order {})", 
                 product.getName(), product.getId(), currentQuantity, newQuantity, order.getOrderNumber());
+        }
+    }
+    
+    /**
+     * Send order confirmation and invoice emails asynchronously
+     * This method runs in the background and doesn't block the payment response
+     */
+    @Async
+    public void sendOrderEmailsAsync(Order order) {
+        try {
+            log.info("Starting async email sending for order {}", order.getOrderNumber());
+            emailService.sendOrderConfirmation(order);
+            log.info("Order confirmation email sent for order {}", order.getOrderNumber());
+            
+            // Generate invoice PDF and send invoice email
+            byte[] invoicePDF = invoiceService.generateInvoicePDF(order);
+            emailService.sendInvoiceEmail(order, invoicePDF);
+            log.info("Invoice email sent for order {}", order.getOrderNumber());
+        } catch (Exception e) {
+            log.error("Failed to send order confirmation/invoice emails for order {}: {}", 
+                    order.getOrderNumber(), e.getMessage(), e);
+            // Don't fail the payment process if email fails
         }
     }
 }

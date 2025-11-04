@@ -1,6 +1,7 @@
 package andreas.kafkis.eberle.jewelry.shop.backend.dto;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -32,5 +33,8 @@ public class OrderDTO {
     private PaymentDTO payment;
     private String trackingNumber;
     private String carrier;
+    private String trackingLink;
+    private Integer estimatedDeliveryDays;
+    private LocalDateTime orderDate;
 }
 

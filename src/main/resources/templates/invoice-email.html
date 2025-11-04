@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoice</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f4f4f4; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; background-color: #ffffff; }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 5px 5px 0 0; color: white; }
+        .header h1 { margin: 0; font-size: 28px; }
+        .content { padding: 30px 20px; }
+        .footer { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; color: #666; font-size: 14px; }
+        .info-box { background-color: #e8f5e9; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #4caf50; }
+        .info-box strong { color: #2e7d32; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📄 Invoice</h1>
+            <p style="margin: 10px 0 0 0; opacity: 0.9;">Your invoice is attached</p>
+        </div>
+        
+        <div class="content">
+            <div class="greeting">
+                <p>Dear <strong th:text="${customer.firstName}">Customer</strong>,</p>
+            </div>
+            
+            <p>Thank you for your purchase! Please find your invoice attached to this email.</p>
+            
+            <div class="info-box">
+                <strong>Invoice Details:</strong><br>
+                Invoice Number: <strong th:text="${order.orderNumber}">ORD-123456</strong><br>
+                Order Date: <span th:text="${orderDate}">January 1, 2024</span><br>
+                Total Amount: <strong th:text="${totalAmount} + ' ' + ${currency}">CHF 100.00</strong>
+            </div>
+            
+            <p>Your invoice has been generated and is attached as a PDF document. You can download it from your account at any time.</p>
+            
+            <p>If you have any questions about your invoice or order, please don't hesitate to contact our support team.</p>
+            
+            <p>Best regards,<br>
+            The <span th:text="${shopName}">Jewelry Shop</span> Team</p>
+        </div>
+        
+        <div class="footer">
+            <p th:text="${footerText}">Thank you for shopping with us!</p>
+            <p th:if="${supportEmail}">Support: <a th:href="'mailto:' + ${supportEmail}" th:text="${supportEmail}">support@example.com</a></p>
+            <p th:if="${supportPhone}">Phone: <span th:text="${supportPhone}"></span></p>
+            <p th:if="${companyAddress}"><span th:text="${companyAddress}"></span></p>
+        </div>
+    </div>
+</body>
+</html>
+

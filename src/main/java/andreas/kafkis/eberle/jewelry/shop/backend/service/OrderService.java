@@ -85,6 +85,13 @@ public class OrderService {
         return convertToDTO(order);
     }
     
+    /**
+     * Get order entity by ID (for internal use)
+     */
+    public Order getOrderEntityById(UUID id) {
+        return orderRepository.findById(id).orElse(null);
+    }
+    
     @Transactional
     public OrderDTO updateOrderStatus(UUID id, UpdateOrderStatusRequest request) {
         Order order = orderRepository.findById(id)
@@ -93,15 +100,28 @@ public class OrderService {
         order.setStatus(Order.OrderStatus.valueOf(request.getStatus()));
         order.setUpdatedAt(OffsetDateTime.now());
         
-        // Note: trackingNumber and carrier fields don't exist in Order entity
-        // These would need to be added to the Order entity if tracking is needed
+        // Update tracking information if provided
+        if (request.getTrackingNumber() != null && !request.getTrackingNumber().trim().isEmpty()) {
+            order.setTrackingNumber(request.getTrackingNumber().trim());
+        }
+        if (request.getCarrier() != null && !request.getCarrier().trim().isEmpty()) {
+            order.setCarrier(request.getCarrier().trim());
+        }
+        if (request.getTrackingLink() != null) {
+            order.setTrackingLink(request.getTrackingLink().trim().isEmpty() ? null : request.getTrackingLink().trim());
+        }
+        if (request.getEstimatedDeliveryDays() != null) {
+            order.setEstimatedDeliveryDays(request.getEstimatedDeliveryDays());
+        }
         
         if (request.getNotes() != null) {
             order.setNotes(request.getNotes());
         }
         
         Order savedOrder = orderRepository.save(order);
-        log.info("Updated order {} status to {}", id, request.getStatus());
+        log.info("Updated order {} status to {} with tracking: {} ({}), link: {}, estimated days: {}", 
+                id, request.getStatus(), request.getTrackingNumber(), request.getCarrier(), 
+                request.getTrackingLink(), request.getEstimatedDeliveryDays());
         
         return convertToDTO(savedOrder);
     }
@@ -155,8 +175,11 @@ public class OrderService {
                 .updatedAt(order.getUpdatedAt())
                 .items(convertOrderItemsToDTO(order.getOrderItems()))
                 .payment(convertPaymentToDTO(order.getPayment()))
-                .trackingNumber(null) // Not available in current Order entity
-                .carrier(null) // Not available in current Order entity
+                .trackingNumber(order.getTrackingNumber())
+                .carrier(order.getCarrier())
+                .trackingLink(order.getTrackingLink())
+                .estimatedDeliveryDays(order.getEstimatedDeliveryDays())
+                .orderDate(order.getOrderDate())
                 .build();
     }
     
