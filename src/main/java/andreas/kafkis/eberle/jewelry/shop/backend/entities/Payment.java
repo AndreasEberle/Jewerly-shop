@@ -46,6 +46,9 @@ public class Payment {
     @Column(name = "amount", nullable = false, precision = 10, scale = 2)
     private BigDecimal amount;
 
+    @Column(name = "amount_cents", nullable = false)
+    private Long amountCents;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 50)
     private PaymentStatus status = PaymentStatus.PENDING;

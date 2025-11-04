@@ -2,8 +2,10 @@ package andreas.kafkis.eberle.jewelry.shop.backend.service;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,6 +41,9 @@ public class CartReservationService {
     
     @Autowired
     private CartRepository cartRepository;
+    
+    @Autowired
+    private andreas.kafkis.eberle.jewelry.shop.backend.repository.ProductRepository productRepository;
     
     /**
      * Get reservation timeout in minutes (default 20)
@@ -81,22 +86,48 @@ public class CartReservationService {
         int timeoutMinutes = getReservationTimeoutMinutes();
         OffsetDateTime expiresAt = OffsetDateTime.now().plusMinutes(timeoutMinutes);
         
+        CartReservation reservation;
         if (existingReservation.isPresent()) {
             // Update existing reservation
-            CartReservation reservation = existingReservation.get();
+            reservation = existingReservation.get();
             reservation.setQuantity(quantity);
             reservation.setExpiresAt(expiresAt);
-            return cartReservationRepository.save(reservation);
+            reservation = cartReservationRepository.save(reservation);
         } else {
             // Create new reservation - explicitly set createdAt
-            CartReservation reservation = CartReservation.builder()
+            reservation = CartReservation.builder()
                     .cart(cart)
                     .product(product)
                     .quantity(quantity)
                     .expiresAt(expiresAt)
                     .createdAt(OffsetDateTime.now())
                     .build();
-            return cartReservationRepository.save(reservation);
+            reservation = cartReservationRepository.save(reservation);
+        }
+        
+        // Extend expiration for ALL reservations in this cart (prolong cart lifetime)
+        extendCartReservations(cart.getId());
+        
+        return reservation;
+    }
+    
+    /**
+     * Extend expiration time for all reservations in a cart
+     * This prolongs the cart lifetime whenever a new item is added or quantity is updated
+     */
+    @Transactional
+    public void extendCartReservations(UUID cartId) {
+        int timeoutMinutes = getReservationTimeoutMinutes();
+        OffsetDateTime newExpiresAt = OffsetDateTime.now().plusMinutes(timeoutMinutes);
+        
+        List<CartReservation> reservations = cartReservationRepository.findByCartId(cartId);
+        for (CartReservation reservation : reservations) {
+            reservation.setExpiresAt(newExpiresAt);
+            cartReservationRepository.save(reservation);
+        }
+        
+        if (!reservations.isEmpty()) {
+            log.debug("Extended expiration for {} reservations in cart {}", reservations.size(), cartId);
         }
     }
     
@@ -153,6 +184,7 @@ public class CartReservationService {
     
     /**
      * Scheduled task to clean up expired reservations every minute
+     * Also removes cart items when their reservations expire
      */
     @Scheduled(fixedRate = 60000) // Every minute
     @Transactional
@@ -161,37 +193,92 @@ public class CartReservationService {
         List<CartReservation> expired = cartReservationRepository.findExpiredReservations(now);
         
         if (!expired.isEmpty()) {
+            // Group expired reservations by cart
+            Map<UUID, List<CartReservation>> expiredByCart = expired.stream()
+                    .collect(Collectors.groupingBy(r -> r.getCart().getId()));
+            
+            // Remove cart items for expired reservations
+            for (Map.Entry<UUID, List<CartReservation>> entry : expiredByCart.entrySet()) {
+                UUID cartId = entry.getKey();
+                List<CartReservation> cartExpiredReservations = entry.getValue();
+                
+                // Get the cart
+                Cart cart = cartRepository.findById(cartId).orElse(null);
+                if (cart != null && cart.getItems() != null) {
+                    // Remove cart items that match expired reservations
+                    List<UUID> expiredProductIds = cartExpiredReservations.stream()
+                            .map(r -> r.getProduct().getId())
+                            .collect(Collectors.toList());
+                    
+                    cart.getItems().removeIf(item -> expiredProductIds.contains(item.getProduct().getId()));
+                    cartRepository.save(cart);
+                    log.info("Removed cart items for expired reservations in cart {}", cartId);
+                }
+            }
+            
             int count = expired.size();
             cartReservationRepository.deleteAll(expired);
-            log.info("Cleaned up {} expired cart reservations", count);
+            log.info("Cleaned up {} expired cart reservations and removed associated cart items", count);
         }
     }
     
     /**
      * Get available stock for a product (considering cart reservations)
+     * Also checks Product.quantity as the base constraint
      */
     public int getAvailableStock(UUID productId) {
-        Inventory inventory = inventoryRepository.findById(productId).orElse(null);
-        if (inventory == null) {
+        // First check Product.quantity - if it's 0, nothing is available
+        Product product = productRepository.findById(productId).orElse(null);
+        if (product == null) {
             return 0;
         }
         
+        int productQuantity = product.getQuantity() != null ? product.getQuantity() : 0;
+        if (productQuantity <= 0) {
+            return 0; // No stock available if product quantity is 0 or less
+        }
+        
+        Inventory inventory = inventoryRepository.findById(productId).orElse(null);
+        if (inventory == null) {
+            // If no inventory record exists, use product quantity minus cart reservations
+            int reservedInCarts = sumReservedQuantityForProduct(productId);
+            return Math.max(0, productQuantity - reservedInCarts);
+        }
+        
+        // Use the minimum of product quantity and inventory quantity as the base
+        int baseQuantity = Math.min(productQuantity, inventory.getQuantity());
         int reservedInCarts = sumReservedQuantityForProduct(productId);
-        return Math.max(0, inventory.getQuantity() - inventory.getReserved() - reservedInCarts);
+        return Math.max(0, baseQuantity - inventory.getReserved() - reservedInCarts);
     }
     
     /**
      * Get available stock for a product, excluding a specific cart
      * Used when converting cart to order - excludes user's own cart reservations
+     * Also checks Product.quantity as the base constraint
      */
     public int getAvailableStockExcludingCart(UUID productId, UUID excludeCartId) {
-        Inventory inventory = inventoryRepository.findById(productId).orElse(null);
-        if (inventory == null) {
+        // First check Product.quantity - if it's 0, nothing is available
+        Product product = productRepository.findById(productId).orElse(null);
+        if (product == null) {
             return 0;
         }
         
+        int productQuantity = product.getQuantity() != null ? product.getQuantity() : 0;
+        if (productQuantity <= 0) {
+            return 0; // No stock available if product quantity is 0 or less
+        }
+        
+        Inventory inventory = inventoryRepository.findById(productId).orElse(null);
+        if (inventory == null) {
+            // If no inventory record exists, use product quantity minus cart reservations
+            int reservedInCarts = sumReservedQuantityForProductExcludingCart(productId, excludeCartId);
+            return Math.max(0, productQuantity - reservedInCarts);
+        }
+        
+        // Use the minimum of product quantity and inventory quantity as the base
+        int baseQuantity = Math.min(productQuantity, inventory.getQuantity());
         int reservedInCarts = sumReservedQuantityForProductExcludingCart(productId, excludeCartId);
-        return Math.max(0, inventory.getQuantity() - inventory.getReserved() - reservedInCarts);
+        return Math.max(0, baseQuantity - inventory.getReserved() - reservedInCarts);
     }
 }
 

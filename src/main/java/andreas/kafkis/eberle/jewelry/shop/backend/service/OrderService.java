@@ -421,6 +421,8 @@ public class OrderService {
         		    throw new UsernameNotFoundException("User not found with email: " + userEmail);
         		}
         
+        // Fetch orders with EntityGraph (excluding images to avoid MultipleBagFetchException)
+        // Images will be loaded separately in convertToOrderItemInfoList
         Page<Order> orders = orderRepository.findByCustomerOrderByOrderDateDesc(user, pageable);
         return orders.map(this::convertToOrderResponse);
     }
@@ -611,6 +613,7 @@ public class OrderService {
                 .taxAmount(order.getTaxAmount() != null ? order.getTaxAmount() : BigDecimal.ZERO)
                 .shippingAmount(order.getShippingAmount() != null ? order.getShippingAmount() : BigDecimal.ZERO)
                 .orderDate(orderDate)
+                .createdAt(order.getCreatedAt()) // Include createdAt directly
                 .updatedAt(order.getUpdatedAt() != null ? order.getUpdatedAt().toLocalDateTime() : null)
                 .notes(order.getNotes())
                 .currency(order.getCurrency() != null ? order.getCurrency() : "CHF")
@@ -668,19 +671,51 @@ public class OrderService {
                     // Initialize lazy collection if needed
                     String imageUrl = null;
                     try {
-                        if (product.getImages() != null) {
-                            // Force initialization of lazy collection
-                            product.getImages().size(); // This triggers lazy loading
-                            if (!product.getImages().isEmpty()) {
-                                imageUrl = product.getImages().stream()
-                                    .filter(img -> img.isPrimary())
-                                    .findFirst()
-                                    .orElse(product.getImages().get(0))
-                                    .getUrl();
+                        // Force load product images with eager fetch
+                        if (product != null) {
+                            // Try to get images - if lazy, force load them
+                            List<andreas.kafkis.eberle.jewelry.shop.backend.entities.ProductImage> images = product.getImages();
+                            if (images != null) {
+                                // Force initialization of lazy collection
+                                int size = images.size(); // This triggers lazy loading
+                                if (size > 0) {
+                                    // Find primary image first, then fall back to first image
+                                    imageUrl = images.stream()
+                                        .filter(img -> img != null && img.isPrimary())
+                                        .findFirst()
+                                        .map(img -> img.getUrl())
+                                        .orElse(images.get(0).getUrl());
+                                }
+                            }
+                            
+                            // If still no image, try fetching product again with images using a join fetch
+                            if (imageUrl == null || imageUrl.isEmpty()) {
+                                try {
+                                    Product productWithImages = productRepository.findById(product.getId())
+                                        .orElse(null);
+                                    if (productWithImages != null) {
+                                        // Force load images
+                                        if (productWithImages.getImages() != null) {
+                                            productWithImages.getImages().size(); // Trigger lazy load
+                                            List<andreas.kafkis.eberle.jewelry.shop.backend.entities.ProductImage> fetchedImages = productWithImages.getImages();
+                                            if (!fetchedImages.isEmpty()) {
+                                                imageUrl = fetchedImages.stream()
+                                                    .filter(img -> img != null && img.isPrimary())
+                                                    .findFirst()
+                                                    .map(img -> img.getUrl())
+                                                    .orElse(fetchedImages.get(0).getUrl());
+                                            }
+                                        }
+                                    }
+                                } catch (Exception fetchEx) {
+                                    log.warn("Failed to fetch product images separately for product {}: {}", 
+                                        product.getId(), fetchEx.getMessage());
+                                }
                             }
                         }
                     } catch (Exception e) {
-                        log.warn("Failed to load product images for product {}: {}", product.getId(), e.getMessage());
+                        log.warn("Failed to load product images for product {}: {}", 
+                            product != null ? product.getId() : "unknown", e.getMessage());
                         // Continue without image
                     }
                     

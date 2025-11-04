@@ -2,6 +2,7 @@ package andreas.kafkis.eberle.jewelry.shop.backend.dto;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -24,6 +25,7 @@ public class OrderResponse {
     private BigDecimal taxAmount;
     private BigDecimal shippingAmount;
     private LocalDateTime orderDate;
+    private OffsetDateTime createdAt;
     private LocalDateTime updatedAt;
     private String notes;
     private String currency;

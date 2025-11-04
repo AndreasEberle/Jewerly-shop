@@ -10,6 +10,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import andreas.kafkis.eberle.jewelry.shop.backend.dto.PaymentDTO;
 import andreas.kafkis.eberle.jewelry.shop.backend.dto.PaymentRequest;
@@ -135,6 +136,8 @@ public class PaymentService {
             Payment payment = new Payment();
             payment.setOrder(order);
             payment.setAmount(request.getAmount());
+            // Convert amount to cents (multiply by 100 and convert to Long)
+            payment.setAmountCents(request.getAmount().multiply(BigDecimal.valueOf(100)).longValue());
             payment.setPaymentMethod(request.getPaymentMethod());
             payment.setStatus(Payment.PaymentStatus.PENDING);
             payment.setTransactionId(UUID.randomUUID().toString());
@@ -190,11 +193,22 @@ public class PaymentService {
     /**
      * Process Stripe payment confirmation
      */
+    @Transactional
     public PaymentResponse processStripePayment(UUID orderId, String paymentIntentId) {
         try {
-            // Fetch order with order items eagerly loaded
+            // Fetch order with order items and product images eagerly loaded
+            // Use a custom query to ensure all relationships are loaded
             Order order = orderRepository.findById(orderId)
                     .orElseThrow(() -> new RuntimeException("Order not found with ID: " + orderId));
+            
+            // Force eager loading of order items and their products with images
+            if (order.getOrderItems() != null) {
+                order.getOrderItems().forEach(item -> {
+                    if (item.getProduct() != null && item.getProduct().getImages() != null) {
+                        item.getProduct().getImages().size(); // Force load images
+                    }
+                });
+            }
             
             // Force load order items if lazy
             if (order.getOrderItems() != null) {
@@ -214,6 +228,8 @@ public class PaymentService {
                 }
                 
                 payment.setAmount(order.getTotalAmount());
+                // Convert amount to cents (multiply by 100 and convert to Long)
+                payment.setAmountCents(order.getTotalAmount().multiply(BigDecimal.valueOf(100)).longValue());
                 payment.setPaymentMethod("STRIPE");
                 payment.setStatus(Payment.PaymentStatus.COMPLETED);
                 payment.setTransactionId(paymentIntentId);
@@ -297,6 +313,8 @@ public class PaymentService {
             Payment refund = new Payment();
             refund.setOrder(payment.getOrder());
             refund.setAmount(amount.negate()); // Negative amount for refund
+            // Convert amount to cents (multiply by 100 and convert to Long, then negate)
+            refund.setAmountCents(amount.multiply(BigDecimal.valueOf(100)).longValue() * -1);
             refund.setPaymentMethod(payment.getPaymentMethod() + "_REFUND");
             refund.setStatus(Payment.PaymentStatus.COMPLETED);
             refund.setTransactionId(UUID.randomUUID().toString());
@@ -331,6 +349,7 @@ public class PaymentService {
      * Update product inventory quantities when order is confirmed
      * Decreases product quantities by the ordered amounts
      */
+    @Transactional
     private void updateProductInventory(Order order) {
         // Force load order items if lazy
         if (order.getOrderItems() != null) {

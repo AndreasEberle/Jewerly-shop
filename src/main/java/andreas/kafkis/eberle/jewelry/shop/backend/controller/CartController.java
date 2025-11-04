@@ -145,7 +145,7 @@ public class CartController {
                 cartReservationService.releaseReservation(item.getCart().getId(), item.getProduct().getId());
                 cartItemRepository.delete(item);
             } else {
-                // Update reservation with new quantity
+                // Update reservation with new quantity (this will also extend all cart reservations)
                 cartReservationService.releaseReservation(item.getCart().getId(), item.getProduct().getId());
                 try {
                     cartReservationService.reserveStockForCart(item.getCart(), item.getProduct(), request.getQuantity());

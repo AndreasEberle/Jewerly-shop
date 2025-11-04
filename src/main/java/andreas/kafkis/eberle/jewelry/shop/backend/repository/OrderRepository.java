@@ -16,10 +16,10 @@ import andreas.kafkis.eberle.jewelry.shop.backend.entities.User;
 
 public interface OrderRepository extends JpaRepository<Order, UUID>, JpaSpecificationExecutor<Order> {
     
-    @EntityGraph(attributePaths = {"orderItems.product.images", "payment", "shippingAddress", "billingAddress", "customer", "discountCodeUsages.discountCode"})
+    @EntityGraph(attributePaths = {"orderItems", "orderItems.product", "payment", "shippingAddress", "billingAddress", "customer"})
     Page<Order> findByCustomerOrderByOrderDateDesc(User customer, Pageable pageable);
     
-    @EntityGraph(attributePaths = {"orderItems.product.images", "payment", "shippingAddress", "billingAddress", "customer", "discountCodeUsages.discountCode"})
+    @EntityGraph(attributePaths = {"orderItems", "payment", "shippingAddress", "billingAddress", "customer"})
     Page<Order> findByStatusOrderByOrderDateDesc(Order.OrderStatus status, Pageable pageable);
     
     @Query(value = "SELECT COUNT(o.id) FROM orders o WHERE o.status = CAST(:status AS order_status)", nativeQuery = true)
