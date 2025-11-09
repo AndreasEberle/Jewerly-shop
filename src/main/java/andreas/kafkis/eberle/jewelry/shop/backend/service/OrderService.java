@@ -246,7 +246,8 @@ public class OrderService {
         if (addressRequest == null) return null;
         
         // Check if user already has this exact address (to avoid duplicates and reuse existing)
-        List<Address> existingAddresses = addressRepository.findByUserId(user.getId());
+        // Only check active addresses
+        List<Address> existingAddresses = addressRepository.findByUserIdAndIsActiveTrue(user.getId());
         Address existingAddress = existingAddresses.stream()
             .filter(addr -> 
                 addr.getStreet().equals(addressRequest.getStreet()) &&
@@ -275,6 +276,7 @@ public class OrderService {
                 .postalCode(addressRequest.getPostalCode())
                 .country(addressRequest.getCountry())
                 .isDefault(false) // Don't set as default automatically
+                .isActive(true) // New addresses are active by default
                 .build();
         
         // Save address to database (and to user's profile)

@@ -1,6 +1,8 @@
 package andreas.kafkis.eberle.jewelry.shop.backend.service;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,8 +20,11 @@ public class LanguageService {
 
     @Autowired
     private UserPreferencesRepository userPreferencesRepository;
+    
+    @Autowired
+    private SystemConfigService systemConfigService;
 
-    private static final String[] SUPPORTED_LANGUAGES = {
+    private static final String[] ALL_POSSIBLE_LANGUAGES = {
         "de-DE", // German (Germany) - Default
         "en-US", // English (United States)
         "ja-JP", // Japanese (Japan)
@@ -28,7 +33,31 @@ public class LanguageService {
     };
 
     public String[] getSupportedLanguages() {
-        return Arrays.copyOf(SUPPORTED_LANGUAGES, SUPPORTED_LANGUAGES.length);
+        List<String> enabledLanguages = new ArrayList<>();
+        
+        // Check each language's enabled status from system_config
+        for (String lang : ALL_POSSIBLE_LANGUAGES) {
+            String configKey = "language." + lang + ".enabled";
+            String enabled = systemConfigService.getConfigValue(configKey);
+            
+            // If config exists and is "true", include the language
+            // If config doesn't exist, default behavior: de-DE, en-US, ja-JP are enabled by default
+            if (enabled != null && "true".equalsIgnoreCase(enabled)) {
+                enabledLanguages.add(lang);
+            } else if (enabled == null) {
+                // If config doesn't exist, use default: enable de-DE, en-US, ja-JP
+                if (Arrays.asList("de-DE", "en-US", "ja-JP").contains(lang)) {
+                    enabledLanguages.add(lang);
+                }
+            }
+        }
+        
+        // Fallback: if no languages are enabled, return default enabled ones
+        if (enabledLanguages.isEmpty()) {
+            return new String[]{"de-DE", "en-US", "ja-JP"};
+        }
+        
+        return enabledLanguages.toArray(new String[0]);
     }
 
     public String getUserPreferredLanguage(User user, String defaultLanguage) {
@@ -71,6 +100,7 @@ public class LanguageService {
     }
 
     private boolean isValidLanguage(String language) {
-        return Arrays.asList(SUPPORTED_LANGUAGES).contains(language);
+        String[] supported = getSupportedLanguages();
+        return Arrays.asList(supported).contains(language);
     }
 }

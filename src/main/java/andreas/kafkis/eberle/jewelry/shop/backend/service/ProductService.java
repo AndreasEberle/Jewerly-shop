@@ -172,7 +172,7 @@ public class ProductService {
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
 
-            // Search in name, description, SKU
+            // Search in name, description, SKU, and material
             if (search != null && !search.trim().isEmpty()) {
                 String searchTerm = "%" + search.trim().toLowerCase() + "%";
                 Predicate namePredicate = criteriaBuilder.like(
@@ -181,8 +181,10 @@ public class ProductService {
                         criteriaBuilder.lower(root.get("description")), searchTerm);
                 Predicate skuPredicate = criteriaBuilder.like(
                         criteriaBuilder.lower(root.get("sku")), searchTerm);
+                Predicate materialPredicate = criteriaBuilder.like(
+                        criteriaBuilder.lower(root.get("material")), searchTerm);
                 
-                predicates.add(criteriaBuilder.or(namePredicate, descriptionPredicate, skuPredicate));
+                predicates.add(criteriaBuilder.or(namePredicate, descriptionPredicate, skuPredicate, materialPredicate));
             }
 
             // Filter by category

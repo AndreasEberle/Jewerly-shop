@@ -37,7 +37,16 @@ public class BackgroundImageService {
         "testimonials",   // Testimonials section
         "footer",         // Footer background
         "about",          // About section
-        "contact"         // Contact section
+        "contact",        // Contact section
+        "story_craftsmanship", // Story section: Craftsmanship
+        "story_materials",     // Story section: Materials & Inspiration
+        "story_personal",      // Story section: Personal Connection
+        "story_explore",       // Story section: Explore Collection
+        "story_craftsmanship_bg", // Story section: Craftsmanship background
+        "story_materials_bg",     // Story section: Materials background
+        "story_personal_bg",      // Story section: Personal Connection background
+        "story_explore_bg",       // Story section: Explore Collection background
+        "washi_texture"        // Washi paper texture for hero background
     };
     
     // Define allowed MIME types
@@ -46,7 +55,10 @@ public class BackgroundImageService {
         "image/jpg", 
         "image/png",
         "image/webp",
-        "image/gif"       // Support for animated GIFs
+        "image/gif",       // Support for animated GIFs
+        "video/mp4",       // Support for MP4 videos
+        "video/webm",      // Support for WebM videos
+        "video/quicktime" // Support for MOV videos
     };
     
     // Get active background image for a section

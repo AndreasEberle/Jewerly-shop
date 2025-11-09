@@ -11,7 +11,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -202,10 +204,13 @@ public class PublicController {
     
     /**
      * Get top banner configuration
+     * Accepts language parameter via Accept-Language header or query parameter
      */
     @GetMapping("/top-banner-config")
     @Operation(summary = "Get top banner configuration")
-    public ResponseEntity<Map<String, Object>> getTopBannerConfig() {
+    public ResponseEntity<Map<String, Object>> getTopBannerConfig(
+            @RequestHeader(value = "Accept-Language", required = false) String acceptLanguage,
+            @RequestParam(value = "lang", required = false) String langParam) {
         try {
             Map<String, Object> bannerConfig = new HashMap<>();
             bannerConfig.put("enabled", "true".equals(systemConfigService.getConfigValue("site.top_banner.enabled")));
@@ -217,12 +222,53 @@ public class PublicController {
             }
             bannerConfig.put("backgroundColor", backgroundColor);
             
+            // Get font size (default to 0.875rem if not set)
+            String fontSize = systemConfigService.getConfigValue("site.top_banner.font_size");
+            if (fontSize == null || fontSize.trim().isEmpty()) {
+                fontSize = "0.875rem"; // Default to slightly larger than current
+            }
+            bannerConfig.put("fontSize", fontSize);
+            
+            // Determine language: query param > Accept-Language header > default to en-US
+            String language = langParam;
+            if (language == null || language.trim().isEmpty()) {
+                if (acceptLanguage != null && !acceptLanguage.trim().isEmpty()) {
+                    // Parse Accept-Language header (e.g., "de-DE,de;q=0.9,en;q=0.8")
+                    String[] parts = acceptLanguage.split(",");
+                    if (parts.length > 0) {
+                        String primaryLang = parts[0].trim().split(";")[0].trim();
+                        // Map common language codes to our supported formats
+                        if (primaryLang.startsWith("de")) {
+                            language = "de-DE";
+                        } else if (primaryLang.startsWith("ja") || primaryLang.startsWith("jp")) {
+                            language = "ja-JP";
+                        } else {
+                            language = "en-US"; // Default
+                        }
+                    } else {
+                        language = "en-US";
+                    }
+                } else {
+                    language = "en-US"; // Default fallback
+                }
+            }
+            
+            // Normalize language code
+            if (!language.equals("de-DE") && !language.equals("ja-JP")) {
+                language = "en-US"; // Default to English if not supported
+            }
+            
             // Get legacy text for backward compatibility
             String text = systemConfigService.getConfigValue("site.top_banner.text");
             bannerConfig.put("text", text);
             
-            // Get carousel slides (JSON array)
-            String slidesJson = systemConfigService.getConfigValue("site.top_banner.slides");
+            // Get language-specific slides from database
+            String slidesJson = systemConfigService.getConfigValue("site.top_banner.slides." + language);
+            
+            // Fallback to default slides if language-specific not found
+            if (slidesJson == null || slidesJson.trim().isEmpty()) {
+                slidesJson = systemConfigService.getConfigValue("site.top_banner.slides");
+            }
             List<Map<String, String>> slides = new ArrayList<>();
             
             if (slidesJson != null && !slidesJson.trim().isEmpty()) {
@@ -257,6 +303,83 @@ public class PublicController {
             errorResponse.put("enabled", false);
             errorResponse.put("text", "");
             errorResponse.put("slides", new ArrayList<>());
+            return ResponseEntity.ok(errorResponse); // Return default values instead of error
+        }
+    }
+    
+    /**
+     * Get popular searches for search modal
+     * Accepts language parameter via Accept-Language header or query parameter
+     */
+    @GetMapping("/popular-searches")
+    @Operation(summary = "Get popular search terms")
+    public ResponseEntity<Map<String, Object>> getPopularSearches(
+            @RequestHeader(value = "Accept-Language", required = false) String acceptLanguage,
+            @RequestParam(value = "lang", required = false) String langParam) {
+        try {
+            // Determine language: query param > Accept-Language header > default to en-US
+            String language = langParam;
+            if (language == null || language.trim().isEmpty()) {
+                if (acceptLanguage != null && !acceptLanguage.trim().isEmpty()) {
+                    // Parse Accept-Language header (e.g., "de-DE,de;q=0.9,en;q=0.8")
+                    String[] parts = acceptLanguage.split(",");
+                    if (parts.length > 0) {
+                        String primaryLang = parts[0].trim().split(";")[0].trim();
+                        // Map common language codes to our supported formats
+                        if (primaryLang.startsWith("de")) {
+                            language = "de-DE";
+                        } else if (primaryLang.startsWith("ja") || primaryLang.startsWith("jp")) {
+                            language = "ja-JP";
+                        } else {
+                            language = "en-US"; // Default
+                        }
+                    } else {
+                        language = "en-US";
+                    }
+                } else {
+                    language = "en-US"; // Default fallback
+                }
+            }
+            
+            // Normalize language code
+            if (!language.equals("de-DE") && !language.equals("ja-JP")) {
+                language = "en-US"; // Default to English if not supported
+            }
+            
+            // Get language-specific popular searches from database
+            String popularSearchesStr = systemConfigService.getConfigValue("site.search.popular_searches." + language);
+            
+            // Fallback to default if language-specific not found
+            if (popularSearchesStr == null || popularSearchesStr.trim().isEmpty()) {
+                popularSearchesStr = systemConfigService.getConfigValue("site.search.popular_searches.en-US");
+            }
+            
+            // Fallback to hardcoded defaults if still not found
+            if (popularSearchesStr == null || popularSearchesStr.trim().isEmpty()) {
+                popularSearchesStr = "Necklace,Ring,Earrings,Bracelet,Gold,Silver";
+            }
+            
+            // Split comma-separated values
+            List<String> popularSearches = new ArrayList<>();
+            if (popularSearchesStr != null && !popularSearchesStr.trim().isEmpty()) {
+                String[] terms = popularSearchesStr.split(",");
+                for (String term : terms) {
+                    String trimmed = term.trim();
+                    if (!trimmed.isEmpty()) {
+                        popularSearches.add(trimmed);
+                    }
+                }
+            }
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("searches", popularSearches);
+            response.put("language", language);
+            
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Failed to load popular searches");
+            errorResponse.put("searches", Arrays.asList("Necklace", "Ring", "Earrings", "Bracelet", "Gold", "Silver"));
             return ResponseEntity.ok(errorResponse); // Return default values instead of error
         }
     }
@@ -363,6 +486,85 @@ public class PublicController {
             errorResponse.put("error", "Failed to load free shipping configuration");
             errorResponse.put("enabled", false);
             errorResponse.put("threshold", 150.0);
+            return ResponseEntity.ok(errorResponse); // Return default values instead of error
+        }
+    }
+    
+    /**
+     * Get translated special offer descriptions
+     * Accepts language parameter via Accept-Language header or query parameter
+     */
+    @GetMapping("/special-offer-descriptions")
+    @Operation(summary = "Get translated special offer descriptions")
+    public ResponseEntity<Map<String, Object>> getSpecialOfferDescriptions(
+            @RequestHeader(value = "Accept-Language", required = false) String acceptLanguage,
+            @RequestParam(value = "lang", required = false) String langParam) {
+        try {
+            // Determine language: query param > Accept-Language header > default to en-US
+            String language = langParam;
+            if (language == null || language.trim().isEmpty()) {
+                if (acceptLanguage != null && !acceptLanguage.trim().isEmpty()) {
+                    // Parse Accept-Language header (e.g., "de-DE,de;q=0.9,en;q=0.8")
+                    String[] parts = acceptLanguage.split(",");
+                    if (parts.length > 0) {
+                        String primaryLang = parts[0].trim().split(";")[0].trim();
+                        // Map common language codes to our supported formats
+                        if (primaryLang.startsWith("de")) {
+                            language = "de-DE";
+                        } else if (primaryLang.startsWith("ja") || primaryLang.startsWith("jp")) {
+                            language = "ja-JP";
+                        } else {
+                            language = "en-US"; // Default
+                        }
+                    } else {
+                        language = "en-US";
+                    }
+                } else {
+                    language = "en-US"; // Default fallback
+                }
+            }
+            
+            // Normalize language code
+            if (!language.equals("de-DE") && !language.equals("ja-JP")) {
+                language = "en-US"; // Default to English if not supported
+            }
+            
+            // Build translation map for common special offer descriptions
+            Map<String, String> translations = new HashMap<>();
+            
+            // Common special offer descriptions
+            String[] descriptions = {
+                "Limited Time Offer", "Free Shipping", "Flash Sale", 
+                "Holiday Special", "Clearance", "New Arrival", "Best Seller"
+            };
+            
+            for (String desc : descriptions) {
+                String key = desc.toLowerCase().replace(" ", "_");
+                String configKey = "special_offer." + key + "." + language;
+                String translated = systemConfigService.getConfigValue(configKey);
+                
+                // Fallback to English if translation not found
+                if (translated == null || translated.trim().isEmpty()) {
+                    translated = systemConfigService.getConfigValue("special_offer." + key + ".en-US");
+                }
+                
+                // Final fallback to original name
+                if (translated == null || translated.trim().isEmpty()) {
+                    translated = desc;
+                }
+                
+                translations.put(desc, translated);
+            }
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("translations", translations);
+            response.put("language", language);
+            
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Failed to load special offer descriptions");
+            errorResponse.put("translations", new HashMap<>());
             return ResponseEntity.ok(errorResponse); // Return default values instead of error
         }
     }

@@ -9,6 +9,7 @@ import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -42,6 +43,9 @@ public class UserProfileController {
     
     @Autowired
     private AddressRepository addressRepository;
+    
+    @Autowired
+    private PasswordEncoder passwordEncoder;
     
     /**
      * Helper method to get current user from authentication
@@ -119,13 +123,47 @@ public class UserProfileController {
     }
     
     /**
+     * Change user password
+     */
+    @PutMapping("/change-password")
+    @Operation(summary = "Change user password")
+    public ResponseEntity<Map<String, Object>> changePassword(
+            @RequestBody ChangePasswordRequest request,
+            Authentication authentication) {
+        User user = getCurrentUser(authentication);
+        
+        // Verify current password
+        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPasswordHash())) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("error", "Current password is incorrect");
+            return ResponseEntity.badRequest().body(error);
+        }
+        
+        // Validate new password
+        if (request.getNewPassword() == null || request.getNewPassword().length() < 8) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("error", "New password must be at least 8 characters long");
+            return ResponseEntity.badRequest().body(error);
+        }
+        
+        // Update password
+        user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+        
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "Password changed successfully");
+        return ResponseEntity.ok(response);
+    }
+    
+    /**
      * Get user addresses
      */
     @GetMapping("/addresses")
     @Operation(summary = "Get user addresses")
     public ResponseEntity<List<AddressDTO>> getAddresses(Authentication authentication) {
         User user = getCurrentUser(authentication);
-        List<Address> addresses = addressRepository.findByUserIdOrderByIsDefaultDescCreatedAtAsc(user.getId());
+        // Only return active addresses
+        List<Address> addresses = addressRepository.findByUserIdAndIsActiveTrueOrderByIsDefaultDescCreatedAtAsc(user.getId());
         
         List<AddressDTO> addressDTOs = addresses.stream()
                 .map(this::convertToDTO)
@@ -144,9 +182,9 @@ public class UserProfileController {
             Authentication authentication) {
         User user = getCurrentUser(authentication);
         
-        // If this is set as default, unset other defaults
+        // If this is set as default, unset other defaults (only for active addresses)
         if (request.getIsDefault() != null && request.getIsDefault()) {
-            List<Address> existingAddresses = addressRepository.findByUserId(user.getId());
+            List<Address> existingAddresses = addressRepository.findByUserIdAndIsActiveTrue(user.getId());
             existingAddresses.forEach(addr -> addr.setDefault(false));
             addressRepository.saveAll(existingAddresses);
         }
@@ -160,6 +198,7 @@ public class UserProfileController {
                 .postalCode(request.getPostalCode())
                 .country(request.getCountry())
                 .isDefault(request.getIsDefault() != null ? request.getIsDefault() : false)
+                .isActive(true)
                 .build();
         
         Address saved = addressRepository.save(address);
@@ -185,9 +224,9 @@ public class UserProfileController {
             return ResponseEntity.status(403).build();
         }
         
-        // If this is set as default, unset other defaults
+        // If this is set as default, unset other defaults (only for active addresses)
         if (request.getIsDefault() != null && request.getIsDefault()) {
-            List<Address> existingAddresses = addressRepository.findByUserId(user.getId());
+            List<Address> existingAddresses = addressRepository.findByUserIdAndIsActiveTrue(user.getId());
             existingAddresses.forEach(addr -> {
                 if (!addr.getId().equals(addressId)) {
                     addr.setDefault(false);
@@ -223,10 +262,10 @@ public class UserProfileController {
     }
     
     /**
-     * Delete address
+     * Delete address (soft delete - sets isActive to false)
      */
     @DeleteMapping("/addresses/{addressId}")
-    @Operation(summary = "Delete address")
+    @Operation(summary = "Delete address (soft delete)")
     public ResponseEntity<Map<String, String>> deleteAddress(
             @PathVariable UUID addressId,
             Authentication authentication) {
@@ -240,7 +279,10 @@ public class UserProfileController {
             return ResponseEntity.status(403).build();
         }
         
-        addressRepository.delete(address);
+        // Soft delete: set isActive to false instead of actually deleting
+        // This preserves the address for orders that reference it
+        address.setActive(false);
+        addressRepository.save(address);
         
         Map<String, String> response = new HashMap<>();
         response.put("message", "Address deleted successfully");
@@ -261,6 +303,12 @@ public class UserProfileController {
     }
     
     // DTOs
+    @Data
+    public static class ChangePasswordRequest {
+        private String currentPassword;
+        private String newPassword;
+    }
+    
     @Data
     public static class UpdateProfileRequest {
         private String firstName;
